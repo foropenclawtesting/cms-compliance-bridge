@@ -36,6 +36,13 @@ header { margin-bottom: 3rem; text-align: center; border-bottom: 1px solid #eee;
 .trend-value { font-weight: bold; color: #2d3748; margin: 1rem 0; }
 .btn-escalate { background: #744210; color: white; font-size: 0.75rem; padding: 0.6rem; }
 
+.strategy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.strat-card { background: white; padding: 1.25rem; border-radius: 8px; border: 1px solid #e2e8f0; }
+.strat-label { font-size: 0.65rem; text-transform: uppercase; font-weight: 800; color: #718096; display: block; margin-bottom: 0.5rem; }
+.strat-value { font-size: 1.1rem; font-weight: 800; color: #2d3748; }
+.strat-bar-bg { height: 6px; background: #edf2f7; border-radius: 3px; margin-top: 1rem; overflow: hidden; }
+.strat-bar-fg { height: 100%; background: #38a169; border-radius: 3px; }
+
 .analytics-table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 0.85rem; }
 .analytics-table th { text-align: left; padding: 1rem; border-bottom: 2px solid #edf2f7; color: #718096; text-transform: uppercase; font-size: 0.65rem; }
 .analytics-table td { padding: 1rem; border-bottom: 1px solid #edf2f7; color: #2d3748; }

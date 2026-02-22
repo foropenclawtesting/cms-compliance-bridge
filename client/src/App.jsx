@@ -13,7 +13,7 @@ function App() {
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+  const [analytics, setAnalytics] = useState({ payers: [], strategies: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
   
   // Auth Form State
   const [email, setEmail] = useState('');
@@ -220,6 +220,17 @@ function App() {
                 }}>Generate Omnibus Appeal</button>
               </div>
             )) : <p className="no-data">No systemic patterns detected yet.</p>}
+          </div>
+
+          <h2 style={{marginTop: '3rem'}}>Strategy Effectiveness</h2>
+          <div className="strategy-grid">
+            {analytics.strategies.map((strat, i) => (
+              <div key={i} className="strat-card">
+                <span className="strat-label">{strat.name.replace(/_/g, ' ')}</span>
+                <span className="strat-value">{strat.winRate}% Win Rate</span>
+                <div className="strat-bar-bg"><div className="strat-bar-fg" style={{width: `${strat.winRate}%`}}></div></div>
+              </div>
+            ))}
           </div>
 
           <h2 style={{marginTop: '3rem'}}>Payer Performance Analytics</h2>

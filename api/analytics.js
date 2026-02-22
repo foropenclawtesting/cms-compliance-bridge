@@ -2,7 +2,6 @@ const supabase = require('../services/supabaseClient');
 const { verifyUser } = require('./services/auth');
 
 export default async function handler(req, res) {
-    // 1. Verify User Session
     const user = await verifyUser(req, res);
     if (!user) return;
 
@@ -13,28 +12,42 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
-        // Pattern Detection and Forecast logic...
         const payerStats = {};
+        const strategyStats = {};
         const patterns = {};
 
         leads.forEach(lead => {
             const payer = lead.insurance_type || "Unknown";
             const procedure = lead.title || "Unknown Procedure";
+            const strategy = lead.strategy || "STANDARD";
 
+            // 1. Payer Benchmarking
             if (!payerStats[payer]) {
                 payerStats[payer] = { name: payer, count: 0, totalValue: 0, wins: 0, processed: 0, totalTatMs: 0 };
             }
             payerStats[payer].count++;
             payerStats[payer].totalValue += parseFloat(lead.estimated_value) || 0;
             
+            // 2. Strategy Effectiveness
+            if (!strategyStats[strategy]) {
+                strategyStats[strategy] = { name: strategy, attempts: 0, wins: 0 };
+            }
+
             if (lead.status === 'Settled') {
                 payerStats[payer].processed++;
-                if (lead.final_outcome === 'Approved') payerStats[payer].wins++;
+                strategyStats[strategy].attempts++;
+                
+                if (lead.final_outcome === 'Approved') {
+                    payerStats[payer].wins++;
+                    strategyStats[strategy].wins++;
+                }
+
                 if (lead.submitted_at && lead.settled_at) {
                     payerStats[payer].totalTatMs += (new Date(lead.settled_at) - new Date(lead.submitted_at));
                 }
             }
 
+            // 3. Systemic Patterns
             const patternKey = `${payer}|${procedure}`;
             if (!patterns[patternKey]) patterns[patternKey] = { payer, procedure, count: 0, value: 0 };
             patterns[patternKey].count++;
@@ -45,16 +58,22 @@ export default async function handler(req, res) {
             .filter(p => p.count >= 2)
             .sort((a, b) => b.value - a.value);
 
-        const stats = Object.values(payerStats).map(p => ({
+        const payers = Object.values(payerStats).map(p => ({
             ...p,
             winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 0,
             avgTatDays: p.processed > 0 ? Math.round(p.totalTatMs / p.processed / (1000 * 60 * 60 * 24)) : 5
         })).sort((a, b) => b.totalValue - a.totalValue);
 
+        const strategies = Object.values(strategyStats).map(s => ({
+            ...s,
+            winRate: s.attempts > 0 ? Math.round((s.wins / s.attempts) * 100) : 0
+        })).sort((a, b) => b.winRate - a.winRate);
+
         const totalPendingValue = leads.filter(l => l.status !== 'Settled').reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
 
         return res.status(200).json({
-            payers: stats,
+            payers,
+            strategies,
             trends: systemicTrends,
             forecast: {
                 totalPendingValue,
