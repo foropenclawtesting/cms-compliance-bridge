@@ -82,7 +82,15 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 .btn-secondary { background: #edf2f7; color: #4a5568; padding: 0.75rem 2rem; width: auto; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
 .risk-tag { font-size: 0.5rem; background: #fff5f5; color: #e53e3e; border: 1px solid #feb2b2; padding: 0.1rem 0.3rem; border-radius: 3px; margin-left: 0.5rem; vertical-align: middle; }
 .risk-meter { width: 100px; height: 6px; background: #edf2f7; border-radius: 3px; overflow: hidden; margin-top: 4px; }
-.performance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.analytics-layout { display: grid; grid-template-columns: 1fr 300px; gap: 3rem; }
+.root-cause-grid { display: grid; gap: 1rem; margin-top: 1.5rem; }
+.rc-card { background: white; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 12px; }
+.rc-bar-bg { height: 8px; background: #edf2f7; border-radius: 4px; overflow: hidden; margin-bottom: 0.75rem; }
+.rc-bar-fill { height: 100%; transition: width 0.8s ease-out; }
+.rc-info { display: flex; justify-content: space-between; align-items: center; }
+.rc-label { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #718096; }
+.rc-val { font-size: 1.25rem; font-weight: 900; color: #2d3748; }
+.performance-list { display: grid; gap: 1rem; margin-top: 1.5rem; }
 .perf-card { background: white; border: 1px solid #e2e8f0; padding: 1.25rem; border-radius: 12px; }
 .perf-card.danger { border-top: 4px solid #e53e3e; }
 .perf-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }

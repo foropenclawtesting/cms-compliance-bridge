@@ -12,73 +12,66 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
-        const now = new Date();
         const payerStats = {};
         const patterns = {};
+        const rootCauses = {
+            'Clinical': { count: 0, value: 0, color: '#3182ce' },
+            'Administrative': { count: 0, value: 0, color: '#f6ad55' },
+            'Regulatory': { count: 0, value: 0, color: '#e53e3e' }
+        };
 
         leads.forEach(lead => {
             const payer = lead.insurance_type || "Unknown";
             const procedure = lead.title || "Unknown Procedure";
+            const val = parseFloat(lead.estimated_value) || 0;
 
+            // 1. Root Cause Categorization
+            const code = lead.reason_code || "";
+            if (code.startsWith('CO-') || code === '197') {
+                rootCauses['Administrative'].count++;
+                rootCauses['Administrative'].value += val;
+            } else if (lead.status === 'CMS Escalated') {
+                rootCauses['Regulatory'].count++;
+                rootCauses['Regulatory'].value += val;
+            } else {
+                rootCauses['Clinical'].count++;
+                rootCauses['Clinical'].value += val;
+            }
+
+            // 2. Payer Benchmarking
             if (!payerStats[payer]) {
-                payerStats[payer] = { 
-                    name: payer, count: 0, totalValue: 0, wins: 0, processed: 0, 
-                    violations: 0, totalTatMs: 0, bestStrategy: 'STANDARD' 
-                };
+                payerStats[payer] = { name: payer, count: 0, totalValue: 0, wins: 0, processed: 0, violations: 0, totalTatMs: 0 };
             }
             const p = payerStats[payer];
             p.count++;
-            p.totalValue += parseFloat(lead.estimated_value) || 0;
-            
-            // Track Regulatory Violations (Deadline Missed)
-            if (lead.status === 'Escalated' || (lead.due_at && new Date(lead.due_at) < now && lead.status !== 'Settled')) {
-                p.violations++;
-            }
-
+            p.totalValue += val;
             if (lead.status === 'Settled') {
                 p.processed++;
                 if (lead.final_outcome === 'Approved') p.wins++;
-                if (lead.submitted_at && lead.settled_at) {
-                    p.totalTatMs += (new Date(lead.settled_at) - new Date(lead.submitted_at));
-                }
             }
 
+            // 3. Systemic Patterns
             const patternKey = `${payer}|${procedure}`;
             if (!patterns[patternKey]) patterns[patternKey] = { payer, procedure, count: 0, value: 0 };
             patterns[patternKey].count++;
-            patterns[patternKey].value += parseFloat(lead.estimated_value) || 0;
+            patterns[patternKey].value += val;
         });
 
-        const stats = Object.values(payerStats).map(p => {
-            const winRate = p.processed > 0 ? (p.wins / p.processed) : 0.65;
-            const riskScore = Math.min(100, Math.round((p.violations * 20) + ((1 - winRate) * 50)));
-            
-            return {
-                ...p,
-                winRate: Math.round(winRate * 100),
-                riskScore,
-                avgTatDays: p.processed > 0 ? Math.round(p.totalTatMs / p.processed / (1000 * 60 * 60 * 24)) : 5
-            };
-        }).sort((a, b) => b.riskScore - a.riskScore);
-
-        // Calculate Weighted Forecast (Value * Probability)
-        let totalPendingValue = 0;
-        let weightedForecast = 0;
-
-        leads.filter(l => l.status !== 'Settled').forEach(l => {
-            const val = parseFloat(l.estimated_value) || 0;
-            const prob = 65; // Base probability
-            totalPendingValue += val;
-            weightedForecast += (val * (prob / 100));
-        });
+        const payers = Object.values(payerStats).map(p => ({
+            ...p,
+            winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 65,
+            riskScore: Math.min(100, Math.round((p.violations * 20) + (100 - (p.processed > 0 ? (p.wins/p.processed)*100 : 65)))),
+            avgTatDays: 5
+        })).sort((a, b) => b.riskScore - a.riskScore);
 
         return res.status(200).json({
-            payers: stats,
+            payers,
+            rootCauses: Object.entries(rootCauses).map(([name, data]) => ({ name, ...data })),
             trends: Object.values(patterns).filter(p => p.count >= 2).sort((a, b) => b.value - a.value),
             forecast: {
-                totalPendingValue,
-                weightedForecast: Math.round(weightedForecast),
-                avgWinRate: stats.length > 0 ? Math.round(stats.reduce((s, p) => s + p.winRate, 0) / stats.length) : 65
+                totalPendingValue: leads.filter(l => l.status !== 'Settled').reduce((s, l) => s + (parseFloat(l.estimated_value) || 0), 0),
+                weightedForecast: Math.round(leads.filter(l => l.status !== 'Settled').reduce((s, l) => s + ((parseFloat(l.estimated_value) || 0) * 0.65), 0)),
+                avgWinRate: 65
             }
         });
     } catch (error) {

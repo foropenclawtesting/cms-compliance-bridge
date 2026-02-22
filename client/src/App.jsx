@@ -11,7 +11,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('leads');
   const [health, setHealth] = useState({ status: 'Checking...', checks: { database: '...', fhir_gateway: '...', fax_gateway: '...', schema: '...' } });
   const [leads, setLeads] = useState([]);
-  const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
+  const [analytics, setAnalytics] = useState({ payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
   const [velocity, setVelocity] = useState([]);
   const [directory, setDirectory] = useState([]);
   const [complianceLog, setComplianceLog] = useState([]);
@@ -284,33 +284,52 @@ function App() {
 
         {activeTab === 'analytics' && (
           <section className="analytics-section">
-            <h2>Systemic Denial Patterns</h2>
-            <div className="trends-grid">
-              {analytics.trends.map((t, i) => (
-                <div key={i} className="trend-card">
-                  <span className="trend-badge">SYSTEMIC PATTERN</span>
-                  <h4>{t.procedure}</h4>
-                  <p>{t.payer} denied this {t.count}x.</p>
-                  <div style={{marginBottom: '1rem'}}>
-                    <strong>Stake: ${t.value.toLocaleString()}</strong>
-                  </div>
-                  <button className="btn-escalate" style={{width: '100%'}} onClick={() => transmitOmnibus(t)}>Transmit Omnibus Demand</button>
-                </div>
-              ))}
-            </div>
-            
-            <h2 style={{marginTop: '3rem'}}>Payer Performance</h2>
-            <div className="performance-grid">
-              {analytics.payers.map((p, i) => (
-                <div key={i} className={`perf-card ${p.riskScore > 50 ? 'danger' : ''}`}>
-                    <div className="perf-top"><strong>{p.name}</strong></div>
-                    <div className="perf-metrics">
-                        <div className="metric"><span className="label">Win Rate</span><span className="val">{p.winRate}%</span></div>
-                        <div className="metric"><span className="label">Avg. TAT</span><span className="val">{p.avgTatDays}d</span></div>
+            <div className="analytics-layout">
+                <div className="main-analytics">
+                    <h2>Denial Root Causes</h2>
+                    <div className="root-cause-grid">
+                        {analytics.rootCauses.map((rc, i) => (
+                            <div key={i} className="rc-card">
+                                <div className="rc-bar-bg"><div className="rc-bar-fill" style={{ width: `${Math.min(100, (rc.value / (analytics.forecast.totalPendingValue || 1)) * 100)}%`, background: rc.color }}></div></div>
+                                <div className="rc-info">
+                                    <span className="rc-label">{rc.name}</span>
+                                    <span className="rc-val">${rc.value.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <div className="risk-meter"><div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div></div>
+
+                    <h2 style={{marginTop: '3rem'}}>Systemic Denial Patterns</h2>
+                    <div className="trends-grid">
+                      {analytics.trends.map((t, i) => (
+                        <div key={i} className="trend-card">
+                          <span className="trend-badge">SYSTEMIC PATTERN</span>
+                          <h4>{t.procedure}</h4>
+                          <p>{t.payer} denied this {t.count}x.</p>
+                          <div style={{marginBottom: '1rem'}}>
+                            <strong>Stake: ${t.value.toLocaleString()}</strong>
+                          </div>
+                          <button className="btn-escalate" style={{width: '100%'}} onClick={() => transmitOmnibus(t)}>Transmit Omnibus Demand</button>
+                        </div>
+                      ))}
+                    </div>
                 </div>
-              ))}
+
+                <div className="side-analytics">
+                    <h2>Payer Performance</h2>
+                    <div className="performance-list">
+                      {analytics.payers.map((p, i) => (
+                        <div key={i} className={`perf-card ${p.riskScore > 50 ? 'danger' : ''}`}>
+                            <div className="perf-top"><strong>{p.name}</strong></div>
+                            <div className="perf-metrics">
+                                <div className="metric"><span className="label">Win Rate</span><span className="val">{p.winRate}%</span></div>
+                                <div className="metric"><span className="label">Avg. TAT</span><span className="val">{p.avgTatDays}d</span></div>
+                            </div>
+                            <div className="risk-meter"><div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div></div>
+                        </div>
+                      ))}
+                    </div>
+                </div>
             </div>
           </section>
         )}
