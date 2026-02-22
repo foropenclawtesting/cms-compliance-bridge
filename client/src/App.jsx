@@ -204,6 +204,7 @@ function App() {
                       {lead.due_at && <span className="deadline">⌛ Due soon</span>}
                     </div>
                     <div className="header-badges">
+                      <span className="probability-tag">{lead.success_probability}% Chance</span>
                       <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
                       <span className={`badge ${lead.status === 'Settled' ? 'success' : (lead.status === 'Healing Required' ? 'error' : 'info')}`}>{lead.status}</span>
                     </div>
