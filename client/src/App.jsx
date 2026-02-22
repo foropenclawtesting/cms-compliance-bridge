@@ -19,7 +19,17 @@ function App() {
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [p2pBrief, setP2pBrief] = useState(null);
-  const [complaintView, setComplaintView] = useState(null);
+  const [networkIntel, setNetworkIntel] = useState(null);
+
+  const fetchNetworkIntel = async (procedure, payer) => {
+    setLoading(true);
+    const res = await fetch(`/api/network-intelligence?procedure=${procedure}&payer=${payer}`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+    setNetworkIntel(data);
+    setLoading(false);
+  };
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   
@@ -543,6 +553,7 @@ function App() {
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
               <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>P2P Brief</button>
+              <button className="btn-secondary" onClick={() => fetchNetworkIntel(editingLead.title, editingLead.insurance_type)}>Network Intel</button>
               <button className="btn-secondary" onClick={() => window.open(`/api/export-audit?leadId=${editingLead.id}`, '_blank')}>Audit Pack</button>
               {editingLead.status === 'Escalated' && (
                 <button className="btn-escalate" onClick={() => escalateToCMS(editingLead.id)}>File CMS Complaint</button>
@@ -599,6 +610,37 @@ function App() {
             <pre className="appeal-editor" style={{ background: '#1a202c', color: '#cbd5e0' }}>{discoveryView}</pre>
             <div className="modal-actions">
               <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close & Log Phase</button>
+            </div>
+          </div>
+        </section>
+      )}
+      {networkIntel && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <div className="modal-header">
+                <h2>Network Intelligence: {networkIntel.procedure}</h2>
+                <span className="badge success">HIVE MIND ACTIVE</span>
+            </div>
+            <div className="performance-grid" style={{marginTop: '2rem'}}>
+                <div className="perf-card">
+                    <strong>Global Win Rate</strong>
+                    <div className="val" style={{color: '#38a169'}}>{networkIntel.global_win_rate}%</div>
+                    <p className="form-note">Average success across 45+ hospitals</p>
+                </div>
+                <div className="perf-card danger">
+                    <strong>Systemic Bias</strong>
+                    <div className="val">{networkIntel.systemic_bias_detected ? 'DETECTED' : 'LOW'}</div>
+                    <p className="form-note">Target for Omnibus Escalation</p>
+                </div>
+            </div>
+            <div className="rc-card" style={{marginTop: '1.5rem'}}>
+                <h3>Cite These Network Precedents</h3>
+                <ul style={{fontSize: '0.9rem'}}>
+                    {networkIntel.precedent_citations.map((c, i) => <li key={i}>{c}</li>)}
+                </ul>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-primary" onClick={() => setNetworkIntel(null)}>Apply to Appeal</button>
             </div>
           </div>
         </section>
