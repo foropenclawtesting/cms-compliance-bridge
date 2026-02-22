@@ -2,42 +2,59 @@ const supabase = require('./services/supabaseClient');
 const { verifyUser } = require('./services/auth');
 
 export default async function handler(req, res) {
-    // 1. Verify User Session
+    // 1. Auth Check
     const user = await verifyUser(req, res);
-    if (!user) return; // verifyUser handles 401 response
+    if (!user) return;
 
     try {
-        const { data, error } = await supabase
+        // 2. Fetch leads
+        const { data: leads, error } = await supabase
             .from('healthcare_denial_leads')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const leads = data.map(lead => ({
-            id: lead.id,
-            user: lead.username,
-            title: lead.title,
-            url: lead.url,
-            pain_point: lead.pain_point,
-            insurance_type: lead.insurance_type,
-            priority: lead.priority,
-            status: lead.status,
-            drafted_appeal: lead.drafted_appeal,
-            edited_appeal: lead.edited_appeal,
-            estimated_value: lead.estimated_value,
-            due_at: lead.due_at,
-            final_outcome: lead.final_outcome,
-            recovered_amount: lead.recovered_amount,
-            settled_at: lead.settled_at,
-            submission_status: lead.submission_status,
-            submission_log: lead.submission_log,
-            clinical_evidence: lead.clinical_intel,
-            clinical_synthesis: lead.clinical_synthesis
-        }));
+        // 3. Fetch all clinical research findings to perform matching
+        const { data: intel } = await supabase
+            .from('clinical_intel')
+            .select('*');
 
-        return res.status(200).json(leads);
+        const enrichedLeads = leads.map(lead => {
+            // Find the best clinical match based on title/procedure keywords
+            const match = (intel || []).find(finding => {
+                const keywords = finding.keywords || [];
+                return keywords.some(k => 
+                    lead.title?.toLowerCase().includes(k.toLowerCase()) || 
+                    lead.pain_point?.toLowerCase().includes(k.toLowerCase())
+                );
+            });
+
+            return {
+                id: lead.id,
+                user: lead.username,
+                title: lead.title,
+                url: lead.url,
+                pain_point: lead.pain_point,
+                insurance_type: lead.insurance_type,
+                priority: lead.priority,
+                status: lead.status,
+                drafted_appeal: lead.drafted_appeal,
+                edited_appeal: lead.edited_appeal,
+                clinical_synthesis: lead.clinical_synthesis,
+                estimated_value: lead.estimated_value,
+                due_at: lead.due_at,
+                final_outcome: lead.final_outcome,
+                recovered_amount: lead.recovered_amount,
+                submission_status: lead.submission_status,
+                submission_log: lead.submission_log,
+                clinical_evidence: match || null
+            };
+        });
+
+        return res.status(200).json(enrichedLeads);
     } catch (error) {
+        console.error('[Leads API Error]:', error.message);
         return res.status(500).json({ error: error.message });
     }
 }
