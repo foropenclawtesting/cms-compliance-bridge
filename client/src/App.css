@@ -55,6 +55,7 @@ header { margin-bottom: 3rem; text-align: center; border-bottom: 1px solid #eee;
 .analytics-table th { text-align: left; padding: 1rem; border-bottom: 2px solid #edf2f7; color: #718096; text-transform: uppercase; font-size: 0.7rem; }
 .analytics-table td { padding: 1rem; border-bottom: 1px solid #edf2f7; color: #2d3748; }
 .analytics-table tr:hover { background: #f7fafc; }
+.stat .value.info { color: #3182ce; }
 .win-rate-pill { background: #e6fffa; color: #2c7a7b; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: bold; }
 
 .card-actions { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }

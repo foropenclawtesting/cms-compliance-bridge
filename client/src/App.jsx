@@ -7,7 +7,7 @@ function App() {
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const [analytics, setAnalytics] = useState([]);
+  const [analytics, setAnalytics] = useState({ payers: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
 
   const fetchLeads = () => {
     fetch('/api/leads')
@@ -140,12 +140,12 @@ function App() {
             <span className="value pending">{l2Escalations}</span>
           </div>
           <div className="stat">
-            <span className="label">Win Rate</span>
-            <span className="value success">{winRate}%</span>
+            <span className="label">Forecasted Recovery</span>
+            <span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span>
           </div>
           <div className="stat">
-            <span className="label">Recovery Progress</span>
-            <span className="value success">{recoveryRate}%</span>
+            <span className="label">System Win Rate</span>
+            <span className="value success">{analytics.forecast.avgWinRate}%</span>
           </div>
         </div>
       </header>
@@ -172,13 +172,13 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {analytics.map((stat, i) => (
+              {analytics.payers.map((stat, i) => (
                 <tr key={i}>
                   <td><strong>{stat.name}</strong></td>
                   <td>{stat.count}</td>
                   <td>${stat.totalValue.toLocaleString()}</td>
                   <td><span className="win-rate-pill">{stat.winRate}%</span></td>
-                  <td className="success"><strong>${parseFloat(stat.wins * (stat.totalValue / stat.count || 0)).toLocaleString()}</strong></td>
+                  <td className="success"><strong>${parseFloat(stat.wins * (stat.totalValue / (stat.count || 1))).toLocaleString()}</strong></td>
                 </tr>
               ))}
             </tbody>
