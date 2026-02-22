@@ -77,8 +77,22 @@ function App() {
                     onClick={() => generateAppeal(lead)} 
                     disabled={loading}
                   >
-                    {lead.drafted_appeal ? 'View Auto-Draft' : 'Draft CMS Appeal'}
+                    {lead.drafted_appeal ? (lead.status === 'Submitted' ? 'View Submitted' : 'View Auto-Draft') : 'Draft CMS Appeal'}
                   </button>
+                  {lead.status === 'Drafted' && (
+                    <button className="btn-submit" onClick={async () => {
+                      if(!confirm("Submit this appeal to the payer portal?")) return;
+                      const res = await fetch('/api/submit-appeal', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ leadId: lead.id, appealText: lead.drafted_appeal })
+                      });
+                      if(res.ok) {
+                        alert("Appeal submitted successfully!");
+                        fetchLeads();
+                      }
+                    }}>Submit to Payer</button>
+                  )}
                 </div>
               </div>
             ))}
