@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     const user = await verifyUser(req, res);
     if (!user) return;
 
-    const { leadId } = req.body;
+    const { leadId, type } = req.body;
 
     try {
         const { data: lead, error } = await supabase
@@ -17,14 +17,16 @@ export default async function handler(req, res) {
 
         if (error || !lead) throw new Error('Lead not found');
 
-        const complaintText = complaintGen.draftComplaint(lead);
+        const complaintText = complaintGen.draftComplaint(lead, type || 'CMS');
 
-        // Mark as formally escalated to CMS
+        // Mark as formally escalated
+        const newStatus = type === 'PAYER_VIOLATION' ? 'Escalated' : 'CMS Escalated';
+        
         await supabase
             .from('healthcare_denial_leads')
             .update({ 
-                status: 'CMS Escalated',
-                submission_log: `Formal CMS Complaint Drafted on ${new Date().toISOString()}.`
+                status: newStatus,
+                submission_log: `${lead.submission_log}\n[${new Date().toISOString()}] Formal Notice (${newStatus}) Drafted.`
             })
             .eq('id', lead.id);
 

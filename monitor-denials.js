@@ -36,7 +36,17 @@ async function monitor() {
             patterns[patternKey].value += parseFloat(lead.estimated_value) || 0;
             patterns[patternKey].ids.push(lead.id);
 
-            // 2. INDIVIDUAL STATUS TRIGGERS
+            // 2. REGULATORY DEADLINE ENFORCEMENT (Notice of Violation)
+            if (lead.due_at && new Date(lead.due_at) < new Date() && lead.status === 'Submitted') {
+                notifications.push({
+                    type: 'REGULATORY_VIOLATION',
+                    leadId: lead.id,
+                    payer: lead.insurance_type,
+                    message: `Deadline VIOLATION detected for ${lead.username}. Deadline was ${lead.due_at}. Triggering Notice of Violation.`
+                });
+            }
+
+            // 3. INDIVIDUAL STATUS TRIGGERS
             if (lead.status === 'Healing Required') {
                 notifications.push({ type: 'AGENTIC_HEAL', payer: lead.insurance_type, leadId: lead.id, message: `Fax failure for ${lead.insurance_type}.` });
             }
