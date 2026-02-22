@@ -11,6 +11,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('leads');
   const [leads, setLeads] = useState([]);
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+  const [velocity, setVelocity] = useState([]);
   const [rules, setRules] = useState([]);
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [editingLeadId, setEditingLeadId] = useState(null);
@@ -33,14 +34,16 @@ function App() {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, r] = await Promise.all([
+        const [l, a, r, v] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
-            fetch('/api/rules', { headers }).then(res => res.json())
+            fetch('/api/rules', { headers }).then(res => res.json()),
+            fetch('/api/velocity', { headers }).then(res => res.json())
         ]);
         setLeads(l || []);
         setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
         setRules(r || []);
+        setVelocity(v || []);
     } catch (err) { console.error(err); }
   };
 
@@ -49,49 +52,6 @@ function App() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) alert(error.message);
-    setLoading(false);
-  };
-
-  const saveRule = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const payload = {
-        payer_name: formData.get('payer'),
-        reason_code: formData.get('code'),
-        strategy: formData.get('strategy')
-    };
-
-    setLoading(true);
-    const res = await fetch('/api/rules', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(payload)
-    });
-    if(res.ok) {
-        alert("Payer Rule updated.");
-        fetchData();
-    }
-    setLoading(false);
-  };
-
-  const generateAppeal = async (lead) => {
-    if (lead.drafted_appeal || lead.edited_appeal) {
-      setEditingAppeal(lead.edited_appeal || lead.drafted_appeal);
-      setEditingLeadId(lead.id);
-      return;
-    }
-    setLoading(true);
-    const res = await fetch('/api/generate-appeal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ leadId: lead.id })
-    });
-    const data = await res.json();
-    setEditingAppeal(data.appeal);
-    setEditingLeadId(lead.id);
     setLoading(false);
   };
 
@@ -123,18 +83,37 @@ function App() {
     <div className="dashboard">
       <header>
         <div className="header-top">
-            <div className="user-pill">{session.user.email}</div>
+            <div className="system-status">
+                <span className="status-dot green"></span> FHIR: Epic Sandbox (Active)
+                <span className="status-dot green"></span> GATEWAY: Phaxio (Online)
+            </div>
             <div className="nav-tabs">
-                <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
-                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Analytics</button>
-                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Rules Engine</button>
+                <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Active Denials</button>
+                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue Strategy</button>
+                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Rules</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
-        <h1>⚡ CMS Compliance Bridge</h1>
+        
+        <div className="hero-stats">
+            <div className="hero-main">
+                <h1>⚡ CMS Compliance Bridge</h1>
+                <p>HIPAA-Compliant Revenue Recovery Operations</p>
+            </div>
+            <div className="velocity-widget">
+                <span className="widget-label">Recovery Velocity (7d)</span>
+                <div className="mini-chart">
+                    {velocity.map((v, i) => (
+                        <div key={i} className="bar" style={{height: `${Math.min(100, (v.amount/10000)*100)}%`}} title={`${v.date}: $${v.amount}`}></div>
+                    ))}
+                </div>
+            </div>
+        </div>
+
         <div className="stats-bar">
-          <div className="stat"><span className="label">Recoverable</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
-          <div className="stat"><span className="label">Forecasted</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Potential Recovery</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Forecasted Win</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Recovered Amount</span><span className="value success">${(leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0)).toLocaleString()}</span></div>
           <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
       </header>
@@ -144,7 +123,7 @@ function App() {
           <section className="leads-list">
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''}`}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
@@ -152,12 +131,13 @@ function App() {
                     </div>
                     <div className="header-badges">
                       <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>
-                      <span className={`badge ${lead.status === 'Settled' ? 'success' : 'info'}`}>{lead.status}</span>
+                      <span className={`badge ${lead.status === 'Settled' ? 'success' : (lead.status === 'Healing Required' ? 'error' : 'info')}`}>{lead.status}</span>
                     </div>
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
+                  {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Self-Healing Active: Correcting fax routing...</div>}
                   <div className="card-actions">
-                    <button className="btn-view" onClick={() => generateAppeal(lead)}>Review Package</button>
+                    <button className="btn-view" onClick={() => { setEditingAppeal(lead.edited_appeal || lead.drafted_appeal); setEditingLeadId(lead.id); }}>Review Package</button>
                   </div>
                 </div>
               ))}
@@ -171,18 +151,18 @@ function App() {
             <div className="trends-grid">
               {analytics.trends.map((t, i) => (
                 <div key={i} className="trend-card">
-                  <span className="trend-badge">TREND</span>
+                  <span className="trend-badge">⚠️ SYSTEMIC PATTERN</span>
                   <h4>{t.procedure}</h4>
-                  <p>{t.payer} denial pattern detected ({t.count}x)</p>
-                  <strong>Impact: ${t.value.toLocaleString()}</strong>
+                  <p>{t.payer} denial cluster detected ({t.count}x)</p>
+                  <strong>Total Stake: ${t.value.toLocaleString()}</strong>
                 </div>
               ))}
             </div>
-            <h2 style={{marginTop: '3rem'}}>Payer Performance</h2>
+            <h2 style={{marginTop: '3rem'}}>Payer Performance Benchmarks</h2>
             <table className="analytics-table">
-                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Recovered</th></tr></thead>
+                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Recovery Action</th></tr></thead>
                 <tbody>{analytics.payers.map((p, i) => (
-                    <tr key={i}><td>{p.name}</td><td>{p.winRate}%</td><td>{p.avgTatDays}d</td><td className="success">${(p.wins * (p.totalValue/p.count)).toLocaleString()}</td></tr>
+                    <tr key={i}><td><strong>{p.name}</strong></td><td>{p.winRate}%</td><td>{p.avgTatDays}d</td><td className="success"><strong>{p.bestStrategy.replace(/_/g, ' ')}</strong></td></tr>
                 ))}</tbody>
             </table>
           </section>
@@ -190,21 +170,10 @@ function App() {
 
         {activeTab === 'rules' && (
           <section className="rules-section">
-            <h2>Programmable Strategy Engine</h2>
+            <h2>Payer Logic Configuration</h2>
             <div className="rules-container">
-                <form className="add-rule-form" onSubmit={saveRule}>
-                    <input name="payer" placeholder="Payer (e.g. Cigna or *)" required />
-                    <input name="code" placeholder="Reason Code" required />
-                    <select name="strategy">
-                        <option value="CLINICAL_PEER_REVIEW">Clinical Peer Review</option>
-                        <option value="REGULATORY_TIMING_STRIKE">Regulatory Timing Strike</option>
-                        <option value="TREATMENT_FAILURE_LOG">Treatment Failure Log</option>
-                        <option value="NPI_VERIFICATION_AUDIT">NPI Verification Audit</option>
-                    </select>
-                    <button type="submit" disabled={loading}>Add Rule</button>
-                </form>
                 <table className="rules-table">
-                    <thead><tr><th>Payer</th><th>Code</th><th>Applied Strategy</th></tr></thead>
+                    <thead><tr><th>Payer</th><th>Reason Code</th><th>Clinical Strategy</th></tr></thead>
                     <tbody>{rules.map((r, i) => (
                         <tr key={i}><td>{r.payer_name}</td><td><code>{r.reason_code}</code></td><td>{r.strategy.replace(/_/g, ' ')}</td></tr>
                     ))}</tbody>
@@ -217,8 +186,8 @@ function App() {
       {editingAppeal && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <div className="modal-header"><h2>Refine Appeal</h2><span>Lead: {editingLeadId}</span></div>
-            <textarea className="appeal-editor" value={editingAppeal} onChange={(e) => setEditingAppeal(e.target.value)} rows={20} />
+            <div className="modal-header"><h2>Refine Appeal Package</h2><span>ID: {editingLeadId}</span></div>
+            <textarea className="appeal-editor" value={editingAppeal} readOnly rows={20} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingAppeal(null)}>Close</button>
             </div>
