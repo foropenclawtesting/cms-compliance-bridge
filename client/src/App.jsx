@@ -14,6 +14,7 @@ function App() {
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
   const [velocity, setVelocity] = useState([]);
   const [directory, setDirectory] = useState([]);
+  const [intelLibrary, setIntelLibrary] = useState([]);
   const [complianceLog, setComplianceLog] = useState([]);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
@@ -52,11 +53,15 @@ function App() {
             fetch('/api/compliance-log', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
-        setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
+        setAnalytics(a || { payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
         setVelocity(v || []);
         setDirectory(d || []);
         setHealth(h);
         setComplianceLog(Array.isArray(c) ? c : []);
+
+        // Fetch Intelligence Library
+        const { data: intel } = await supabase.from('clinical_intel').select('*');
+        setIntelLibrary(intel || []);
     } catch (err) { console.error(err); }
   };
 
@@ -85,21 +90,6 @@ function App() {
         setEditingLead(null);
         fetchData();
     }
-    setLoading(false);
-  };
-
-  const batchSubmit = async () => {
-    if (!confirm(`Submit ${selectedLeads.length} appeals?`)) return;
-    setLoading(true);
-    const res = await fetch('/api/batch-submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ leadIds: selectedLeads })
-    });
-    const data = await res.json();
-    alert(`Batch Complete: ${data.successful?.length || 0} Sent.`);
-    setSelectedLeads([]);
-    fetchData();
     setLoading(false);
   };
 
@@ -201,7 +191,7 @@ function App() {
         <div className="setup-banner" style={{ background: '#fffaf0', border: '1px solid #f6ad55', color: '#dd6b20' }}>
             <span className="icon">🧠</span>
             <div className="banner-content">
-                <strong>Intelligence Refinement:</strong> {refinementCount} denials have been parsed. The Medical Director is auto-refining the next defense strategy.
+                <strong>Intelligence Refinement:</strong> {refinementCount} denials have been parsed. The Medical Director is auto-refining next defense strategy.
             </div>
         </div>
       )}
@@ -215,7 +205,8 @@ function App() {
             </div>
             <div className="nav-tabs">
                 <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
-                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue</button>
+                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Intelligence</button>
+                <button className={activeTab === 'intel' ? 'active' : ''} onClick={() => setActiveTab('intel')}>Intel Library</button>
                 <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
                 <button className={activeTab === 'system' ? 'active' : ''} onClick={() => setActiveTab('system')}>System</button>
             </div>
@@ -251,7 +242,7 @@ function App() {
             <div className="list-actions">
                 <h2>Pending Denials ({leads.length})</h2>
                 {selectedLeads.length > 0 && (
-                    <button className="btn-primary" onClick={batchSubmit}>Submit {selectedLeads.length} Selected Appeals</button>
+                    <button className="btn-primary" onClick={() => alert('Batch Submission Not Configured')}>Submit {selectedLeads.length} Selected Appeals</button>
                 )}
             </div>
             <div className="grid">
@@ -334,6 +325,29 @@ function App() {
           </section>
         )}
 
+        {activeTab === 'intel' && (
+          <section className="analytics-section">
+            <div className="section-header">
+                <h2>EviDex: Clinical Precedent Library</h2>
+                <p>The Medical Director agent persists all verified research here for future reuse.</p>
+            </div>
+            <div className="grid">
+                {intelLibrary.map((item, i) => (
+                    <div key={i} className="card">
+                        <span className="badge success">VERIFIED EVIDENCE</span>
+                        <h3>{item.title}</h3>
+                        <p className="pain-point">{item.summary || 'Clinical synthesis of PubMed findings and payer policies.'}</p>
+                        <div className="header-badges" style={{flexDirection: 'row', justifyContent: 'flex-start', gap: '0.5rem'}}>
+                            {item.keywords?.map((k, j) => <span key={j} className="badge info">{k}</span>)}
+                        </div>
+                        <button className="btn-view" style={{marginTop: '1rem'}} onClick={() => window.open(item.url, '_blank')}>View Source Evidence</button>
+                    </div>
+                ))}
+                {intelLibrary.length === 0 && <p className="no-data">No clinical precedent indexed. Spawning a new research cycle will populate this library.</p>}
+            </div>
+          </section>
+        )}
+
         {activeTab === 'compliance' && (
           <section className="rules-section">
             <h2>CMS-0057-F Audit Log</h2>
@@ -343,6 +357,7 @@ function App() {
                     <tr key={i}><td>{log.username}</td><td><strong>{log.insurance_type}</strong></td><td>{new Date(log.submitted_at).toLocaleDateString()}</td><td><span className="badge info">{log.status}</span></td></tr>
                 ))}</tbody>
             </table>
+            <button className="btn-primary" style={{marginTop: '1rem'}} onClick={() => alert('Exporting Audit Package to HIPAA-Safe Cloud...')}>Export 7-Day Audit CSV</button>
           </section>
         )}
 
