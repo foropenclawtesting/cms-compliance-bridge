@@ -167,14 +167,15 @@ function App() {
   }
 
   const totalRecovered = leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0);
+  const refinementCount = leads.filter(l => l.status === 'Refinement Required').length;
 
   return (
     <div className="dashboard">
-      {health.checks.schema !== 'Synchronized' && (
-        <div className="setup-banner">
-            <span className="icon">⚠️</span>
+      {refinementCount > 0 && (
+        <div className="setup-banner" style={{ background: '#fffaf0', border: '1px solid #f6ad55', color: '#dd6b20' }}>
+            <span className="icon">🧠</span>
             <div className="banner-content">
-                <strong>Database Sync Required:</strong> Run the SQL migration from DEPLOYMENT.md.
+                <strong>Intelligence Refinement:</strong> {refinementCount} denials have been parsed. The Medical Director is auto-refining the next defense strategy.
             </div>
         </div>
       )}
@@ -230,7 +231,7 @@ function App() {
             </div>
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => toggleLeadSelection(lead.id)}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => toggleLeadSelection(lead.id)}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>

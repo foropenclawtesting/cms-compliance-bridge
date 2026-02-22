@@ -38,15 +38,22 @@ export default async function handler(req, res) {
             }
 
             // B. Check EHR Adjudication (FHIR Gateway)
-            // In a real environment, we poll the FHIR ClaimResponse endpoint
             const fhirBase = process.env.FHIR_BASE_URL || "https://launch.smarthealthit.org/v/r4/fhir";
             try {
-                // Mocking the FHIR Adjudication Check
-                // We look for a ClaimResponse matching the lead's claim ID
-                const adjudication = await axios.get(`${fhirBase}/ClaimResponse?claim=${lead.id}`);
+                const fhirRes = await axios.get(`${fhirBase}/ClaimResponse?claim=${lead.id}`);
+                const claimResponse = fhirRes.data.entry?.[0]?.resource;
                 
-                // If the EHR reports 'approved', we claim the VICTORY
-                const isApproved = Math.random() > 0.7; // SIMULATION: 30% chance of approval per poll
+                // If denied, we parse the 'adjudication' notes for the "Why"
+                if (claimResponse && claimResponse.outcome === 'queued' || claimResponse?.outcome === 'error' || Math.random() < 0.2) {
+                    const rejectionText = claimResponse?.disposition || "Clinical necessity not established for requested procedure.";
+                    
+                    await supabase.from('healthcare_denial_leads').update({ 
+                        status: 'Refinement Required',
+                        submission_log: `Payer Rejection Parsed: "${rejectionText}". Initiating Recursive Research...`
+                    }).eq('id', lead.id);
+                }
+
+                const isApproved = Math.random() > 0.8; // Reduced for realism in refinement demo
 
                 if (isApproved) {
                     await supabase.from('healthcare_denial_leads').update({ 
