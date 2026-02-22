@@ -139,7 +139,22 @@ function App() {
     setLoading(false);
   };
 
-  const transmitOmnibus = async (trend) => {
+  const [simChat, setSimChat] = useState([]);
+
+  const runSimulation = async (lead) => {
+    const arg = prompt("Your Clinical Argument:");
+    if (!arg) return;
+    
+    setLoading(true);
+    const res = await fetch('/api/p2p-simulator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId: lead.id, physicianArgument: arg, payerName: lead.insurance_type })
+    });
+    const data = await res.json();
+    setSimChat([...simChat, { role: 'Physician', text: arg }, { role: 'Payer', text: data.payerResponse, hint: data.strategyHint }]);
+    setLoading(false);
+  };
     if (!confirm(`Transmit Systemic Omnibus Appeal for ${trend.count} denials?`)) return;
     setLoading(true);
     const genRes = await fetch('/api/generate-omnibus', {
@@ -469,10 +484,25 @@ function App() {
       {p2pBrief && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <div className="modal-header"><h2>Physician P2P Briefing</h2></div>
+            <div className="modal-header">
+                <h2>Physician P2P Briefing</h2>
+                <button className="btn-escalate" onClick={() => runSimulation(editingLead)}>Launch War Room Sim</button>
+            </div>
             <pre className="appeal-editor" style={{ background: '#f0f4f8', color: '#2d3748' }}>{p2pBrief}</pre>
+            
+            {simChat.length > 0 && (
+                <div className="sim-chat">
+                    {simChat.map((msg, i) => (
+                        <div key={i} className={`chat-bubble ${msg.role.toLowerCase()}`}>
+                            <strong>{msg.role}:</strong> {msg.text}
+                            {msg.hint && <div className="strategy-hint">💡 {msg.hint}</div>}
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setP2pBrief(null)}>Close</button>
+              <button className="btn-secondary" onClick={() => { setP2pBrief(null); setSimChat([]); }}>Close</button>
               <button className="btn-primary" onClick={() => requestP2P(editingLead.id)}>Transmit P2P Request</button>
             </div>
           </div>

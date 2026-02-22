@@ -93,7 +93,11 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 .portal-card { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); width: 100%; max-width: 600px; text-align: left; }
 .status-hero { background: #f7fafc; padding: 2rem; border-radius: 12px; margin: 2rem 0; border: 1px solid #e2e8f0; }
 .uplink-section textarea { width: 100%; padding: 1rem; border: 1px solid #cbd5e0; border-radius: 8px; margin-top: 1rem; box-sizing: border-box; }
-.rc-info { display: flex; justify-content: space-between; align-items: center; }
+.sim-chat { margin-top: 2rem; border-top: 1px solid #e2e8f0; padding-top: 2rem; display: flex; flex-direction: column; gap: 1rem; }
+.chat-bubble { padding: 1rem; border-radius: 8px; font-size: 0.85rem; max-width: 80%; }
+.chat-bubble.physician { align-self: flex-end; background: #ebf8ff; color: #2b6cb0; }
+.chat-bubble.payer { align-self: flex-start; background: #fff5f5; color: #c53030; border-left: 4px solid #c53030; }
+.strategy-hint { margin-top: 0.75rem; font-size: 0.7rem; font-style: italic; color: #38a169; }
 .rc-label { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #718096; }
 .defense-meter { margin-top: 0.5rem; }
 .meter-label { font-size: 0.55rem; font-weight: 800; color: #718096; text-transform: uppercase; display: block; margin-bottom: 2px; }
