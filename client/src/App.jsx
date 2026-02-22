@@ -18,7 +18,26 @@ function App() {
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [p2pBrief, setP2pBrief] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState([]);
+
+  const batchSubmit = async () => {
+    if (!confirm(`Submit ${selectedLeads.length} appeals via Gateway?`)) return;
+    setLoading(true);
+    const res = await fetch('/api/batch-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadIds: selectedLeads })
+    });
+    const data = await res.json();
+    alert(`Batch Complete: ${data.successful.length} Sent, ${data.failed.length} Failed.`);
+    setSelectedLeads([]);
+    fetchData();
+    setLoading(false);
+  };
+
+  const toggleLeadSelection = (id) => {
+    setSelectedLeads(prev => prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]);
+  };
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -180,9 +199,15 @@ function App() {
       <main>
         {activeTab === 'leads' && (
           <section className="leads-list">
+            <div className="list-actions">
+                <h2>Pending Denials ({leads.length})</h2>
+                {selectedLeads.length > 0 && (
+                    <button className="btn-primary" onClick={batchSubmit}>Submit {selectedLeads.length} Selected Appeals</button>
+                )}
+            </div>
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''}`}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => toggleLeadSelection(lead.id)}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
