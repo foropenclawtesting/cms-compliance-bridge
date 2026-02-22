@@ -38,7 +38,19 @@ async function monitor() {
                 });
             }
 
-            // 2. REVENUE VICTORY REPORT
+            // 2. RECURSIVE REFINEMENT TRIGGER
+            if (lead.status === 'Refinement Required') {
+                notifications.push({
+                    type: 'RECURSIVE_RESEARCH',
+                    payer: lead.insurance_type,
+                    procedure: lead.title,
+                    leadId: lead.id,
+                    rejection: lead.submission_log,
+                    message: `Payer rejection detected for ${lead.username}. Initiating Recursive Research Loop.`
+                });
+            }
+
+            // 3. REVENUE VICTORY REPORT
             if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
                 notifications.push({
                     type: 'VICTORY',
