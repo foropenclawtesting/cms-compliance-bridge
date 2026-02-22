@@ -1,8 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
-const path = require('path');
 
-// Load Credentials (handling the typo in the .env file if necessary)
+// Load Credentials
 const envPath = '/Users/server/.openclaw/workspace/projects/cms-compliance-bridge/.env';
 const env = fs.readFileSync(envPath, 'utf8');
 const supabaseUrl = env.match(/SUPABASE_URL=["']?([^"'\s]+)/)?.[1];
@@ -11,48 +10,49 @@ const supabaseKey = env.match(/SUP[A-Z_]*ANON_KEY[:=]\s*["']?([^"'\s]+)/)?.[1];
 const STATE_FILE = '/Users/server/.openclaw/workspace/projects/cms-compliance-bridge/notified_leads.json';
 
 async function monitor() {
-    if (!supabaseUrl || !supabaseKey) {
-        console.error('Missing Supabase credentials.');
-        return;
-    }
-
+    if (!supabaseUrl || !supabaseKey) return;
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Load local notification state
     let notifiedIds = [];
-    if (fs.existsSync(STATE_FILE)) {
-        notifiedIds = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-    }
+    if (fs.existsSync(STATE_FILE)) notifiedIds = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
 
     try {
-        // Fetch High Priority leads with an existing draft
+        // Fetch leads that are Drafted but not yet Submitted
         const { data: leads, error } = await supabase
             .from('healthcare_denial_leads')
-            .select('id, username, insurance_type, drafted_appeal')
-            .eq('priority', 'High Priority')
-            .not('drafted_appeal', 'is', null);
+            .select('id, username, insurance_type, priority, due_at, status')
+            .eq('status', 'Drafted')
+            .not('due_at', 'is', null);
 
         if (error) throw error;
 
-        const newLeads = leads.filter(l => !notifiedIds.includes(l.id));
+        const now = new Date();
+        const urgentThreshold = 24 * 60 * 60 * 1000; // 24 hours
 
-        if (newLeads.length > 0) {
-            console.log(`FOUND ${newLeads.length} NEW HIGH-PRIORITY APPEALS.`);
+        leads.forEach(lead => {
+            const timeLeft = new Date(lead.due_at) - now;
             
-            // Output for the agent to catch in the heartbeat turn
-            newLeads.forEach(lead => {
+            // 1. Alert on New High Priority Drafts
+            if (lead.priority === 'High Priority' && !notifiedIds.includes(`new-${lead.id}`)) {
                 console.log(`---NOTIFICATION_START---`);
-                console.log(`URGENT: New High Priority Appeal drafted for ${lead.username} (${lead.insurance_type}).`);
-                console.log(`Action Required: Review draft for Claim AUTO-${lead.id}.`);
+                console.log(`URGENT: New High-Priority Draft ready for ${lead.username}.`);
+                console.log(`Action: Review and Transmit to ${lead.insurance_type}.`);
                 console.log(`---NOTIFICATION_END---`);
-                notifiedIds.push(lead.id);
-            });
+                notifiedIds.push(`new-${lead.id}`);
+            }
 
-            // Save state
-            fs.writeFileSync(STATE_FILE, JSON.stringify(notifiedIds));
-        } else {
-            console.log('No new high-priority appeals detected.');
-        }
+            // 2. Alert on Approaching Deadlines (< 24h)
+            if (timeLeft > 0 && timeLeft < urgentThreshold && !notifiedIds.includes(`deadline-${lead.id}`)) {
+                const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+                console.log(`---NOTIFICATION_START---`);
+                console.log(`⚠️ DEADLINE ALERT: Appeal for ${lead.username} expires in ${hoursLeft} hours!`);
+                console.log(`Regulatory: CMS-0057-F window closing for ${lead.insurance_type}.`);
+                console.log(`---NOTIFICATION_END---`);
+                notifiedIds.push(`deadline-${lead.id}`);
+            }
+        });
+
+        fs.writeFileSync(STATE_FILE, JSON.stringify(notifiedIds));
     } catch (err) {
         console.error('Monitor Error:', err.message);
     }

@@ -62,6 +62,18 @@ function App() {
     .filter(l => l.status === 'Submitted')
     .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
 
+  const calculateTimeLeft = (dueDate) => {
+    if (!dueDate) return null;
+    const difference = +new Date(dueDate) - +new Date();
+    if (difference <= 0) return "EXPIRED";
+    
+    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+    const mins = Math.floor((difference / 1000 / 60) % 60);
+
+    return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
+  };
+
   return (
     <div className="dashboard">
       <header>
@@ -89,7 +101,14 @@ function App() {
             {leads.map((lead, i) => (
               <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''}`}>
                 <div className="card-header">
-                  <h3>{lead.user}</h3>
+                  <div className="title-group">
+                    <h3>{lead.user}</h3>
+                    {lead.due_at && (
+                      <span className={`deadline ${calculateTimeLeft(lead.due_at).includes('h') && !calculateTimeLeft(lead.due_at).includes('d') ? 'urgent' : ''}`}>
+                        ⌛ {calculateTimeLeft(lead.due_at)}
+                      </span>
+                    )}
+                  </div>
                   <div className="header-badges">
                     {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
                     {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}

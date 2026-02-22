@@ -20,7 +20,9 @@ export default async function handler(req, res) {
             priority: lead.priority,
             status: lead.status,
             drafted_appeal: lead.drafted_appeal,
-            estimated_value: lead.estimated_value
+            edited_appeal: lead.edited_appeal,
+            estimated_value: lead.estimated_value,
+            due_at: lead.due_at
         }));
 
         return res.status(200).json(leads);

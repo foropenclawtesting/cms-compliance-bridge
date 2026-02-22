@@ -41,7 +41,13 @@ export default async function handler(req, res) {
                 if (evidence) console.log(`[Auto-Appealer] Clinical Match Found: "${matchedKeyword}" -> ${evidence.title}`);
             }
 
-            // 3. Generate Draft with Evidence
+            // 3. Calculate CMS-0057-F Deadline
+            // 72 hours for High Priority (Urgent), 7 days for Standard
+            const createdDate = new Date(lead.created_at);
+            const deadlineHours = lead.priority === 'High Priority' ? 72 : (7 * 24);
+            const dueAt = new Date(createdDate.getTime() + (deadlineHours * 60 * 60 * 1000));
+
+            // 4. Generate Draft with Evidence
             const appealText = appealGenerator.draft({
                 payerId: lead.insurance_type,
                 claimId: `AUTO-${lead.id}`,
@@ -50,12 +56,13 @@ export default async function handler(req, res) {
                 clinicalEvidence: evidence
             });
 
-            // 4. Save back to Supabase
+            // 5. Save back to Supabase
             await supabase
                 .from('healthcare_denial_leads')
                 .update({ 
                     drafted_appeal: appealText,
-                    status: 'Drafted' 
+                    status: 'Drafted',
+                    due_at: dueAt.toISOString()
                 })
                 .eq('id', lead.id);
 
