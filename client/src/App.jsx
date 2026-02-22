@@ -14,7 +14,32 @@ function App() {
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
   const [velocity, setVelocity] = useState([]);
   const [directory, setDirectory] = useState([]);
-  const [editingAppeal, setEditingAppeal] = useState(null);
+  const [editingLead, setEditingLead] = useState(null);
+  const [editedText, setEditedText] = useState('');
+
+  const transmitAppeal = async (leadId, insurance) => {
+    setLoading(true);
+    // 1. Save the edited version first
+    await fetch('/api/save-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId, appealText: editedText })
+    });
+
+    // 2. Transmit through Gateway
+    const res = await fetch('/api/submit-appeal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId, insuranceName: insurance })
+    });
+    
+    if (res.ok) {
+        alert('Appeal Transmitted Successfully via Gateway.');
+        setEditingLead(null);
+        fetchData();
+    }
+    setLoading(false);
+  };
   const [loading, setLoading] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -185,7 +210,10 @@ function App() {
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
                   {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing: Correcting fax routing for {lead.insurance_type}...</div>}
-                  <button className="btn-view" onClick={() => setEditingAppeal(lead.drafted_appeal)}>Review Clinical Package</button>
+                  <button className="btn-view" onClick={() => {
+                    setEditingLead(lead);
+                    setEditedText(lead.edited_appeal || lead.drafted_appeal);
+                  }}>Review Clinical Package</button>
                 </div>
               ))}
               {leads.length === 0 && <p className="no-data">No denials detected. Run the local Scout to populate.</p>}
@@ -249,13 +277,22 @@ function App() {
         )}
       </main>
 
-      {editingAppeal && (
+      {editingLead && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <div className="modal-header"><h2>Appeal Package Review</h2></div>
-            <textarea className="appeal-editor" value={editingAppeal} readOnly rows={20} />
+            <div className="modal-header">
+                <h2>Clinical Review: {editingLead.user}</h2>
+                <span className="badge info">{editingLead.insurance_type}</span>
+            </div>
+            <textarea 
+                className="appeal-editor" 
+                value={editedText} 
+                onChange={(e) => setEditedText(e.target.value)}
+                rows={20} 
+            />
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setEditingAppeal(null)}>Close</button>
+              <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
+              <button className="btn-primary" disabled={loading} onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
             </div>
           </div>
         </section>
