@@ -71,6 +71,12 @@ ${clinicalSynthesis}${carrierIntelligence}
         strategyPreamble = `SPECIALTY NOTICE: This appeal addresses a Step Therapy violation. Treatment delay is clinically contraindicated.`;
     }
 
+    // 5. CUSTOM STRATEGY INJECTION (Your Programmed Logic)
+    let customInjection = "";
+    if (details.custom_strategy) {
+        customInjection = `\nSTRATEGIC DEFENSE: ${details.custom_strategy}`;
+    }
+
     const letterTemplate = `
 DATE: ${today}
 TO: ${payerId} - Claims & Appeals Department
@@ -83,7 +89,7 @@ This letter serves as a formal appeal for the denial of Claim #${claimId} (${rea
 
 ${strategyPreamble}
 
-${evidenceSection}
+${evidenceSection}${customInjection}
 
 REGULATORY COMPLIANCE:
 Per CMS-0057-F, payers are mandated to provide specific, actionable reasons for denials via FHIR APIs. Our audit suggests this denial lacks granular justification. We request immediate redetermination based on the clinical evidence cited above.

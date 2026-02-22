@@ -20,8 +20,13 @@ export default async function handler(req, res) {
             .from('clinical_intel')
             .select('*');
 
+        // 3. Fetch Payer-Specific Programmable Rules
+        const { data: rules } = await supabase
+            .from('payer_rules')
+            .select('*');
+
         const enrichedLeads = leads.map(lead => {
-            // Find the best clinical match based on title/procedure keywords
+            // A. Match Clinical Intel (Research)
             const match = (intel || []).find(finding => {
                 const keywords = finding.keywords || [];
                 return keywords.some(k => 
@@ -30,9 +35,17 @@ export default async function handler(req, res) {
                 );
             });
 
-            const winRate = 65; // Base fallback win rate
+            // B. Match Strategic Rules (Your Programmed Logic)
+            const customRule = (rules || []).find(r => 
+                r.payer_name?.toLowerCase() === lead.insurance_type?.toLowerCase() &&
+                r.reason_code === lead.reason_code
+            );
+
+            // C. Calculate Success Probability
+            const winRate = 65; 
+            const strategyMultiplier = customRule ? 1.25 : 1.0; // Rules increase win probability by 25%
             const urgencyMultiplier = lead.priority === 'High Priority' ? 1.15 : 1.0;
-            const probability = Math.min(98, Math.round(winRate * urgencyMultiplier));
+            const probability = Math.min(98, Math.round(winRate * urgencyMultiplier * strategyMultiplier));
 
             return {
                 id: lead.id,
@@ -53,6 +66,7 @@ export default async function handler(req, res) {
                 submission_status: lead.submission_status,
                 submission_log: lead.submission_log,
                 success_probability: probability,
+                custom_strategy: customRule?.strategy || null,
                 clinical_evidence: match || null
             };
         });
