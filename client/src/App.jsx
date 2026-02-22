@@ -535,11 +535,39 @@ function App() {
 
         {activeTab === 'system' && (
           <section className="rules-section">
-            <h2>System Connectivity</h2>
-            <div className="performance-grid">
-                <div className={`perf-card ${health.checks.database === 'Connected' ? '' : 'danger'}`}><strong>Database</strong><div className="val">{health.checks.database}</div></div>
-                <div className={`perf-card ${health.checks.fhir_gateway.includes('Active') ? '' : 'danger'}`}><strong>FHIR Tunnel</strong><div className="val">{health.checks.fhir_gateway}</div></div>
-                <div className={`perf-card ${health.checks.fax_gateway === 'Live' ? '' : 'danger'}`}><strong>Fax Gateway</strong><div className="val">{health.checks.fax_gateway}</div></div>
+            <div className="analytics-layout">
+                <div className="main-analytics">
+                    <h2>System Connectivity</h2>
+                    <div className="performance-grid">
+                        <div className={`perf-card ${health.checks.database === 'Connected' ? '' : 'danger'}`}><strong>Database</strong><div className="val">{health.checks.database}</div></div>
+                        <div className={`perf-card ${health.checks.fhir_gateway.includes('Active') ? '' : 'danger'}`}><strong>FHIR Tunnel</strong><div className="val">{health.checks.fhir_gateway}</div></div>
+                        <div className={`perf-card ${health.checks.fax_gateway === 'Live' ? '' : 'danger'}`}><strong>Fax Gateway</strong><div className="val">{health.checks.fax_gateway}</div></div>
+                    </div>
+
+                    <h2 style={{marginTop: '3rem'}}>Payer Portal Registry</h2>
+                    <table className="rules-table">
+                        <thead><tr><th>Portal</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody>{portals.map((p, i) => (
+                            <tr key={i}>
+                                <td><strong>{p.payer_name}</strong><br/><small>{p.portal_url}</small></td>
+                                <td><span className={`badge ${p.has_credentials ? 'success' : 'info'}`}>{p.has_credentials ? 'ENCRYPTED' : 'NOT CONFIGURED'}</span></td>
+                                <td><button className="status-link" onClick={() => alert('Credential Rotation Not Implemented')}>Rotate</button></td>
+                            </tr>
+                        ))}</tbody>
+                    </table>
+                </div>
+
+                <div className="side-analytics">
+                    <div className="rule-form">
+                        <h3>Register Gateway</h3>
+                        <p className="form-note">Securely store credentials for proprietary payer portals.</p>
+                        <input placeholder="Payer (e.g. Optum)" value={newPortal.payerId} onChange={e => setNewPortal({...newPortal, payerId: e.target.value})} />
+                        <input placeholder="Portal URL" value={newPortal.portalUrl} onChange={e => setNewPortal({...newPortal, portalUrl: e.target.value})} />
+                        <input placeholder="Username" value={newPortal.username} onChange={e => setNewPortal({...newPortal, username: e.target.value})} />
+                        <input type="password" placeholder="Password" value={newPortal.password} onChange={e => setNewPortal({...newPortal, password: e.target.value})} />
+                        <button className="btn-primary" onClick={savePortal} disabled={loading}>Secure Portal</button>
+                    </div>
+                </div>
             </div>
           </section>
         )}
