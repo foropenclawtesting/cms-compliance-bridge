@@ -6,7 +6,6 @@ function App() {
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
-
   const [analytics, setAnalytics] = useState({ payers: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
 
   const fetchLeads = () => {
@@ -29,17 +28,19 @@ function App() {
 
   const saveEdit = async () => {
     setLoading(true);
-    const res = await fetch('/api/save-draft', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: editingLeadId, appealText: editingAppeal })
-    });
-    if(res.ok) {
-      alert("Draft saved successfully.");
-      setEditingAppeal(null);
-      setEditingLeadId(null);
-      fetchLeads();
-    }
+    try {
+        const res = await fetch('/api/save-draft', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ leadId: editingLeadId, appealText: editingAppeal })
+        });
+        if(res.ok) {
+            alert("Draft saved successfully.");
+            setEditingAppeal(null);
+            setEditingLeadId(null);
+            fetchLeads();
+        }
+    } catch (e) { console.error(e); }
     setLoading(false);
   };
 
@@ -71,8 +72,8 @@ function App() {
     setLoading(false);
   };
 
-  const pendingDrafts = leads.filter(l => l.status.includes('Drafted'));
-  const l2Escalations = leads.filter(l => l.status.includes('Level 2')).length;
+  const pendingDrafts = leads.filter(l => l.status && l.status.includes('Drafted'));
+  const l2Escalations = leads.filter(l => l.status && l.status.includes('Level 2')).length;
   
   const totalRecoverable = leads
     .filter(l => l.status !== 'Settled')
@@ -83,7 +84,7 @@ function App() {
     .reduce((sum, l) => sum + (parseFloat(l.recovered_amount) || 0), 0);
 
   const bulkTransmit = async () => {
-    if(!confirm(`Transmit all ${pendingDrafts.length} prepared appeals to their respective payers?`)) return;
+    if(!confirm(`Transmit all ${pendingDrafts.length} prepared appeals?`)) return;
     setLoading(true);
     for (const lead of pendingDrafts) {
       await fetch('/api/submit-appeal', {
@@ -189,7 +190,7 @@ function App() {
           </div>
           <div className="grid">
             {leads.map((lead, i) => (
-              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status.includes('Drafted') ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
+              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status && lead.status.includes('Drafted') ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
                 <div className="card-header">
                   <div className="title-group">
                     <h3>{lead.user}</h3>
@@ -201,7 +202,7 @@ function App() {
                   </div>
                   <div className="header-badges">
                     {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
-                    {lead.status.includes('Drafted') && <span className="badge success">Ready for Review</span>}
+                    {lead.status && lead.status.includes('Drafted') && <span className="badge success">Ready for Review</span>}
                     {lead.status === 'Submitted' && <span className={`badge info ${lead.submission_status === 'Failed' ? 'error' : ''}`}>
                       {lead.submission_status === 'Delivered' ? '✅ Fax Delivered' : (lead.submission_status === 'Failed' ? '❌ Fax Failed' : '📡 Transmitting...')}
                     </span>}
@@ -219,16 +220,16 @@ function App() {
                   >
                     { (lead.drafted_appeal || lead.edited_appeal) ? (lead.status === 'Submitted' ? 'View Submission' : 'Review Appeal Package') : 'Draft CMS Appeal'}
                   </button>
-                  {lead.status.includes('Drafted') && (
+                  {lead.status && lead.status.includes('Drafted') && (
                     <button className="btn-submit" onClick={async () => {
-                      if(!confirm(`Transmit this appeal to the regulatory department for ${lead.insurance_type}?`)) return;
+                      if(!confirm(`Transmit this appeal for ${lead.insurance_type}?`)) return;
                       setLoading(true);
                       const res = await fetch('/api/submit-appeal', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ leadId: lead.id, insuranceName: lead.insurance_type })
                       });
-                      if(res.ok) { alert("Appeal transmitted successfully!"); fetchLeads(); }
+                      if(res.ok) { alert("Appeal transmitted!"); fetchLeads(); }
                       setLoading(false);
                     }} disabled={loading}>Transmit Appeal</button>
                   )}
@@ -271,7 +272,7 @@ function App() {
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `Physician_Brief_${editingLeadId}.pdf`;
+                  a.download = `P2P_Brief_${editingLeadId}.pdf`;
                   a.click();
                 }}>Download P2P Brief</button>
                 <button className="btn-download" onClick={async () => {
@@ -291,7 +292,7 @@ function App() {
                   a.href = url;
                   a.download = `Clinical_Package_${editingLeadId}.pdf`;
                   a.click();
-                }}>Download Clinical Package</button>
+                }}>Download Package</button>
                 <button className="btn-secondary" onClick={() => {
                   setEditingAppeal(null);
                   setEditingLeadId(null);
