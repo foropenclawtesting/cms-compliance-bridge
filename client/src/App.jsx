@@ -74,18 +74,34 @@ function App() {
 
   const transmitAppeal = async (leadId, insurance) => {
     setLoading(true);
+    
+    // 1. Save the edited version
     await fetch('/api/save-draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ leadId, appealText: editedText })
     });
+
+    // 2. Trigger the Learning Engine (100x Leverage)
+    fetch('/api/learn-from-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ 
+            leadId, 
+            originalText: editingLead.drafted_appeal, 
+            editedText 
+        })
+    });
+
+    // 3. Transmit through Gateway
     const res = await fetch('/api/submit-appeal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ leadId, insuranceName: insurance })
     });
+    
     if (res.ok) {
-        alert('Appeal Transmitted Successfully.');
+        alert('Appeal Transmitted. System has learned from your edits.');
         setEditingLead(null);
         fetchData();
     }

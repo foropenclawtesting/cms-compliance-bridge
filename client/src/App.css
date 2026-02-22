@@ -1,7 +1,8 @@
 .dashboard { padding: 2rem; max-width: 1200px; margin: 0 auto; font-family: -apple-system, system-ui, sans-serif; background: #fafafa; color: #333; }
 header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2rem; }
 
-.setup-banner { background: #fff5f5; border: 1px solid #feb2b2; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; color: #c53030; font-size: 0.9rem; text-align: left; }
+.setup-banner { background: #fff5f5; border: 1px solid #feb2b2; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; color: #c53030; font-size: 0.9rem; text-align: left; animation: slideIn 0.3s ease-out; }
+@keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .btn-copy-sql { background: #c53030; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; font-weight: bold; cursor: pointer; margin-left: auto; width: auto; font-size: 0.75rem; }
 
 .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
