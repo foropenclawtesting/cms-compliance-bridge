@@ -2,14 +2,13 @@ const supabase = require('../services/supabaseClient');
 const appealGenerator = require('../services/appeal-generator');
 
 export default async function handler(req, res) {
-    // Basic Cron Auth check
     const authHeader = req.headers['authorization'];
     if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return res.status(401).end('Unauthorized');
     }
 
     try {
-        // 1. Fetch pending high-priority leads that don't have a draft yet
+        // 1. Fetch pending high-priority leads
         const { data: leads, error: fetchError } = await supabase
             .from('healthcare_denial_leads')
             .select('*')
@@ -17,24 +16,42 @@ export default async function handler(req, res) {
             .is('drafted_appeal', null);
 
         if (fetchError) throw fetchError;
-
         console.log(`[Auto-Appealer] Found ${leads.length} pending high-priority cases.`);
 
         const results = [];
 
-        // 2. Loop through and generate drafts
         for (const lead of leads) {
-            console.log(`[Auto-Appealer] Drafting appeal for ${lead.username} / Claim ${lead.id}...`);
-            
+            // 2. CLINICAL CROSS-REFERENCE: Look for matching intel
+            // We search for research findings that mention keywords in the lead's pain point
+            const keywords = ['cancer', 'mri', 'surgery', 'medication', 'biopsy'];
+            const matchedKeyword = keywords.find(k => 
+                lead.pain_point.toLowerCase().includes(k) || 
+                lead.title.toLowerCase().includes(k)
+            );
+
+            let evidence = null;
+            if (matchedKeyword) {
+                const { data: intel } = await supabase
+                    .from('clinical_intel')
+                    .select('*')
+                    .contains('keywords', [matchedKeyword])
+                    .limit(1)
+                    .single();
+                evidence = intel;
+                if (evidence) console.log(`[Auto-Appealer] Clinical Match Found: "${matchedKeyword}" -> ${evidence.title}`);
+            }
+
+            // 3. Generate Draft with Evidence
             const appealText = appealGenerator.draft({
                 payerId: lead.insurance_type,
                 claimId: `AUTO-${lead.id}`,
                 reason: lead.pain_point,
-                timestamp: lead.created_at
+                timestamp: lead.created_at,
+                clinicalEvidence: evidence
             });
 
-            // 3. Save the draft back to Supabase and mark as 'Drafted'
-            const { error: updateError } = await supabase
+            // 4. Save back to Supabase
+            await supabase
                 .from('healthcare_denial_leads')
                 .update({ 
                     drafted_appeal: appealText,
@@ -42,19 +59,10 @@ export default async function handler(req, res) {
                 })
                 .eq('id', lead.id);
 
-            if (updateError) {
-                console.error(`Failed to update lead ${lead.id}:`, updateError.message);
-            } else {
-                results.push({ id: lead.id, user: lead.username, status: 'Success' });
-            }
+            results.push({ id: lead.id, user: lead.username, matched: !!evidence });
         }
         
-        return res.status(200).json({
-            processed: true,
-            totalFound: leads.length,
-            results: results,
-            timestamp: new Date().toISOString()
-        });
+        return res.status(200).json({ processed: true, results, timestamp: new Date().toISOString() });
 
     } catch (error) {
         console.error('[Auto-Appealer Error]:', error.message);

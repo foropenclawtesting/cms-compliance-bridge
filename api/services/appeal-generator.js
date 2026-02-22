@@ -1,39 +1,45 @@
 /**
  * Appeal Generator Service
- * Specialized logic for drafting letters citing CMS-0057-F (Interoperability and Prior Authorization Final Rule)
+ * Enhanced with Clinical Evidence (EviDex) and Regulatory Compliance (CMS-0057-F)
  */
 
 exports.draft = (details) => {
-    const { payerId, claimId, reason, timestamp } = details;
+    const { payerId, claimId, reason, timestamp, clinicalEvidence } = details;
     
-    console.log(`Generating formal CMS compliance appeal for Claim: ${claimId}...`);
+    console.log(`Generating comprehensive clinical/regulatory appeal for Claim: ${claimId}...`);
 
     const today = new Date().toLocaleDateString();
+
+    const evidenceSection = clinicalEvidence 
+        ? `
+CLINICAL EVIDENCE SUPPORT:
+According to recent evidence-based research and dynamic literature monitoring:
+"${clinicalEvidence.snippet.substring(0, 300)}..."
+Source: ${clinicalEvidence.title} (${clinicalEvidence.url})
+This finding suggests that the requested service is consistent with emerging standards of care that may not yet be reflected in static payer medical policies.`
+        : "";
 
     const letterTemplate = `
 DATE: ${today}
 TO: ${payerId} - Claims & Appeals Department
-RE: FORMAL APPEAL - Claim #${claimId}
-REGULATORY NOTICE: CMS-0057-F Compliance Violation
+RE: COMPREHENSIVE MEDICAL APPEAL - Claim #${claimId}
+REGULATORY NOTICE: CMS-0057-F Compliance Violation & Clinical Evidence Submission
 
 Dear Claims Review Committee,
 
-This letter serves as a formal appeal for the denial of Claim #${claimId}, which was adjudicated as "Rejected" on ${new Date(timestamp).toLocaleDateString()}.
+This letter serves as a formal appeal for the denial of Claim #${claimId} (${reason}).
 
-The specified denial reason is: "${reason}"
+${evidenceSection}
 
-Per the CMS Interoperability and Prior Authorization Final Rule (CMS-0057-F), payers are mandated to provide specific, actionable reasons for prior authorization denials via standardized HL7 FHIR APIs to facilitate transparency and reduce provider burden.
+REGULATORY COMPLIANCE:
+Per the CMS Interoperability and Prior Authorization Final Rule (CMS-0057-F), payers are mandated to provide specific, actionable reasons for prior authorization denials via standardized HL7 FHIR APIs. Our audit suggests this denial lacks the granular justification mandated by the current CMS framework.
 
-Our internal audit of the FHIR ExplanationOfBenefit (EOB) resource for this claim suggests that the denial contradicts established decision-making timelines or lacks the required granular justification mandated by the current CMS regulatory framework.
-
-We request an immediate redetermination of this claim. Failure to align prior authorization processes with the interoperability standards outlined in CMS-0057-F may be reported to the Centers for Medicare & Medicaid Services (CMS) for further review of network compliance.
-
-Please provide a response within the mandated decision window (72 hours for urgent / 7 days for standard).
+We request an immediate redetermination based on the clinical evidence cited above and the transparency requirements of CMS-0057-F.
 
 Sincerely,
 
 [Provider Name / Automated Compliance System]
-CMS Compliance Bridge generated on ${today}
+CMS Compliance Bridge + EviDex Intel Engine
     `;
 
     return letterTemplate.trim();
