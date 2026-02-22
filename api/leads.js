@@ -1,5 +1,6 @@
 const supabase = require('./services/supabaseClient');
 const { verifyUser } = require('./services/auth');
+const ehr = require('./services/ehr-extractor');
 
 export default async function handler(req, res) {
     // 1. Auth Check
