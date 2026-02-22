@@ -76,6 +76,31 @@ function App() {
     setLoading(false);
   };
 
+  const transmitOmnibus = async (trend) => {
+    if (!confirm(`Transmit Systemic Omnibus Appeal to ${trend.payer} Legal? This handles ${trend.count} denials.`)) return;
+    setLoading(true);
+    try {
+        const genRes = await fetch('/api/generate-omnibus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure, json: true })
+        });
+        const genData = await genRes.json();
+
+        const subRes = await fetch('/api/submit-omnibus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure, appealText: genData.text })
+        });
+
+        if (subRes.ok) {
+            alert(`SUCCESS: Omnibus escalation transmitted to ${trend.payer}.`);
+            fetchData();
+        }
+    } catch (err) { alert(`Error: ${err.message}`); }
+    setLoading(false);
+  };
+
   if (!session) {
     return (
       <div className="login-screen">
@@ -99,7 +124,7 @@ function App() {
         <div className="setup-banner">
             <span className="icon">⚠️</span>
             <div className="banner-content">
-                <strong>Database Sync Required:</strong> Missing columns detected. Run the SQL Migration to enable the Medical Director agent.
+                <strong>Database Sync Required:</strong> Missing columns detected. See DEPLOYMENT.md for the SQL migration.
             </div>
         </div>
       )}
@@ -178,6 +203,7 @@ function App() {
                   <h4>{t.procedure}</h4>
                   <p>{t.payer} denied this {t.count}x.</p>
                   <strong>Stake: ${t.value.toLocaleString()}</strong>
+                  <button className="btn-escalate" disabled={loading} onClick={() => transmitOmnibus(t)}>Transmit Omnibus Appeal</button>
                 </div>
               ))}
             </div>
