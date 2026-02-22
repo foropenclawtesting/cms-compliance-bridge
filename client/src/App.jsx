@@ -36,9 +36,18 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const [heatmap, setHeatmap] = useState([]);
+
+  const fetchHeatmap = async () => {
+    const res = await fetch('/api/victory-heatmap', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+    const data = await res.json();
+    setHeatmap(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
     if (session) {
         fetchData();
+        fetchHeatmap();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
@@ -188,7 +197,24 @@ function App() {
 
         {activeTab === 'analytics' && (
           <section className="analytics-section">
-            <h2>Systemic Pattern Detection</h2>
+            <div className="analytics-layout">
+                <div className="main-analytics">
+                    <h2>Network Victory Heatmap</h2>
+                    <p className="form-note">Real-time approval trends across 45+ hospitals. Target <b>High Vulnerability</b> payers first.</p>
+                    <div className="performance-grid" style={{marginTop: '1.5rem'}}>
+                        {heatmap.map((h, i) => (
+                            <div key={i} className={`perf-card ${h.vulnerability === 'HIGH' ? 'success-border' : ''}`}>
+                                <div className="perf-top">
+                                    <strong>{h.payer}</strong>
+                                    <span className={`badge ${h.vulnerability === 'HIGH' ? 'success' : 'info'}`}>{h.vulnerability}</span>
+                                </div>
+                                <div className="val" style={{color: h.vulnerability === 'HIGH' ? '#38a169' : '#2d3748'}}>{h.win_rate}% Win</div>
+                                <p className="form-note">{h.procedure}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    <h2 style={{marginTop: '3rem'}}>Systemic Pattern Detection</h2>
             <div className="trends-grid">
               {analytics.trends.map((t, i) => (
                 <div key={i} className="trend-card">
