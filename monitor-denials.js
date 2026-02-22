@@ -7,43 +7,35 @@ const env = fs.readFileSync(envPath, 'utf8');
 const supabaseUrl = env.match(/SUPABASE_URL=["']?([^"'\s]+)/)?.[1];
 const supabaseKey = env.match(/SUP[A-Z_]*ANON_KEY[:=]\s*["']?([^"'\s]+)/)?.[1];
 
-const STATE_FILE = '/Users/server/.openclaw/workspace/projects/cms-compliance-bridge/notified_leads.json';
-
 async function monitor() {
     if (!supabaseUrl || !supabaseKey) return;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    let notifiedIds = [];
-    if (fs.existsSync(STATE_FILE)) notifiedIds = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
 
     try {
-        const { data: leads, error } = await supabase.from('healthcare_denial_leads').select('*');
+        const { data: leads, error } = await supabase
+            .from('healthcare_denial_leads')
+            .select('*')
+            .in('status', ['Healing Required', 'Settled']);
+
         if (error) throw error;
 
         leads.forEach(lead => {
-            // 1. ALERT ON TRANSMISSION FAILURES (Triggering Agentic Healing)
-            if (lead.status === 'Healing Required' && !notifiedIds.includes(`heal-${lead.id}`)) {
-                console.log(`---NOTIFICATION_START---`);
-                console.log(`🤖 SELF-HEALING TRIGGERED: Fax delivery failed for ${lead.username} (${lead.insurance_type}).`);
-                console.log(`Action: I am searching the web for a verified clinical appeals fax number for ${lead.insurance_type}...`);
-                console.log(`---NOTIFICATION_END---`);
-                notifiedIds.push(`heal-${lead.id}`);
-                
-                // In a production OpenClaw setup, we would trigger a sub-agent HERE
-                // to search and UPSERT back to the 'payers.json' or lead record.
+            // 1. TRIGGER AGENTIC HEALING
+            if (lead.status === 'Healing Required') {
+                console.log(`---COMMAND_START---`);
+                console.log(`TYPE: AGENTIC_HEAL`);
+                console.log(`PAYER: ${lead.insurance_type}`);
+                console.log(`LEAD_ID: ${lead.id}`);
+                console.log(`INSTRUCTION: Search for the verified "Clinical Appeals & Grievances" fax number for ${lead.insurance_type}. Update the 'payer_rules' table or lead record with the result and reset status to 'Drafted' for re-transmission.`);
+                console.log(`---COMMAND_END---`);
             }
 
-            // 2. Alert on Victories
-            if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && !notifiedIds.includes(`victory-${lead.id}`)) {
-                console.log(`---NOTIFICATION_START---`);
-                console.log(`🎉 REVENUE RECOVERED: Appeal for ${lead.username} APPROVED!`);
-                console.log(`Recovered: $${parseFloat(lead.recovered_amount).toLocaleString()}`);
-                console.log(`---NOTIFICATION_END---`);
-                notifiedIds.push(`victory-${lead.id}`);
+            // 2. REPORT REVENUE VICTORIES
+            if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
+                // This is picked up by the message tool in the main session
+                console.log(`URGENT: Victory for ${lead.username}. Recovered $${parseFloat(lead.recovered_amount).toLocaleString()}.`);
             }
         });
-
-        fs.writeFileSync(STATE_FILE, JSON.stringify(notifiedIds));
     } catch (err) { console.error('Monitor Error:', err.message); }
 }
 
