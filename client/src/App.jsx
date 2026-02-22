@@ -23,7 +23,23 @@ function App() {
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   
-  const [email, setEmail] = useState('');
+  const [preAuthResult, setPreAuthResult] = useState(null);
+
+  const runPreAuthAudit = async () => {
+    const payer = prompt("Enter Payer:");
+    const proc = prompt("Enter Procedure:");
+    if (!payer || !proc) return;
+
+    setLoading(true);
+    const res = await fetch('/api/pre-auth-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ payer, procedure: proc })
+    });
+    const data = await res.json();
+    setPreAuthResult(data);
+    setLoading(false);
+  };
   const [password, setPassword] = useState('');
 
   useEffect(() => {
@@ -295,10 +311,10 @@ function App() {
             <div className="nav-tabs">
                 <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
                 <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Intelligence</button>
+                <button className={activeTab === 'prevention' ? 'active' : ''} onClick={() => setActiveTab('prevention')}>Prevention</button>
                 <button className={activeTab === 'intel' ? 'active' : ''} onClick={() => setActiveTab('intel')}>Intel Library</button>
                 <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
                 <button className={activeTab === 'system' ? 'active' : ''} onClick={() => setActiveTab('system')}>System</button>
-                <button className="status-link" style={{marginLeft: '1rem', color: '#3182ce'}} onClick={() => setPatientView(true)}>View Patient Portal</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
@@ -377,8 +393,31 @@ function App() {
           </section>
         )}
 
-        {activeTab === 'analytics' && (
+        {activeTab === 'prevention' && (
           <section className="analytics-section">
+            <div className="section-header">
+                <h2>Pre-Authorization Guard</h2>
+                <p>Run a predictive audit on planned procedures to avoid denials before they happen.</p>
+                <button className="btn-primary" onClick={runPreAuthAudit}>Run New Predictive Audit</button>
+            </div>
+            
+            {preAuthResult && (
+                <div className="performance-grid" style={{marginTop: '2rem'}}>
+                    <div className={`perf-card ${preAuthResult.risk === 'HIGH' ? 'danger' : ''}`}>
+                        <strong>Predicted Risk: {preAuthResult.risk}</strong>
+                        <div className="risk-meter"><div className="risk-fill" style={{ width: `${preAuthResult.probabilityOfDenial}%`, background: preAuthResult.risk === 'HIGH' ? '#e53e3e' : '#38a169' }}></div></div>
+                        <p className="form-note">Estimated Denial Probability: {preAuthResult.probabilityOfDenial}%</p>
+                    </div>
+                    <div className="rc-card" style={{gridColumn: 'span 2'}}>
+                        <h3>Evidence Buffering Suggestions</h3>
+                        <ul style={{fontSize: '0.9rem', color: '#4a5568'}}>
+                            {preAuthResult.suggestions.map((s, i) => <li key={i} style={{marginBottom: '0.5rem'}}>{s}</li>)}
+                        </ul>
+                    </div>
+                </div>
+            )}
+          </section>
+        )}
             <div className="analytics-layout">
                 <div className="main-analytics">
                     <h2>Denial Root Causes</h2>
