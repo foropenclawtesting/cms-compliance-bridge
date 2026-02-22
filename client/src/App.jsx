@@ -47,12 +47,29 @@ function App() {
     setLoading(false);
   };
 
+  const totalRecoverable = leads
+    .filter(l => l.status !== 'Submitted')
+    .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
+
+  const totalSubmitted = leads
+    .filter(l => l.status === 'Submitted')
+    .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
+
   return (
     <div className="dashboard">
       <header>
         <div className="status-badge">Live Cloud Sync</div>
         <h1>⚡ CMS Compliance Bridge</h1>
-        <p>Proactive Denial Management & Regulatory Appeals</p>
+        <div className="stats-bar">
+          <div className="stat">
+            <span className="label">Recoverable Revenue</span>
+            <span className="value">${totalRecoverable.toLocaleString()}</span>
+          </div>
+          <div className="stat">
+            <span className="label">Successfully Defended</span>
+            <span className="value success">${totalSubmitted.toLocaleString()}</span>
+          </div>
+        </div>
       </header>
 
       <main>
@@ -63,10 +80,14 @@ function App() {
           </div>
           <div className="grid">
             {leads.map((lead, i) => (
-              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''}`}>
+              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''}`}>
                 <div className="card-header">
                   <h3>{lead.user}</h3>
-                  {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}
+                  <div className="header-badges">
+                    {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
+                    {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}
+                    {lead.status === 'Submitted' && <span className="badge info">Submitted</span>}
+                  </div>
                 </div>
                 <p><strong>Payer:</strong> {lead.insurance_type}</p>
                 <p className="pain-point">{lead.pain_point}</p>
