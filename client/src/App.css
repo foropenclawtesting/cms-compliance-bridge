@@ -89,8 +89,10 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 .rc-bar-fill { height: 100%; transition: width 0.8s ease-out; }
 .rc-info { display: flex; justify-content: space-between; align-items: center; }
 .rc-label { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: #718096; }
-.rc-val { font-size: 1.25rem; font-weight: 900; color: #2d3748; }
-.performance-list { display: grid; gap: 1rem; margin-top: 1.5rem; }
+.defense-meter { margin-top: 0.5rem; }
+.meter-label { font-size: 0.55rem; font-weight: 800; color: #718096; text-transform: uppercase; display: block; margin-bottom: 2px; }
+.meter-bg { height: 4px; background: #edf2f7; border-radius: 2px; overflow: hidden; width: 120px; }
+.meter-fill { height: 100%; transition: width 0.5s ease-out; }
 .perf-card { background: white; border: 1px solid #e2e8f0; padding: 1.25rem; border-radius: 12px; }
 .perf-card.danger { border-top: 4px solid #e53e3e; }
 .perf-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }

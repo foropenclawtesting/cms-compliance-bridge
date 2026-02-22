@@ -59,7 +59,6 @@ function App() {
         setHealth(h);
         setComplianceLog(Array.isArray(c) ? c : []);
 
-        // Fetch Intelligence Library
         const { data: intel } = await supabase.from('clinical_intel').select('*');
         setIntelLibrary(intel || []);
     } catch (err) { console.error(err); }
@@ -88,6 +87,22 @@ function App() {
     if (res.ok) {
         alert('Appeal Transmitted Successfully.');
         setEditingLead(null);
+        fetchData();
+    }
+    setLoading(false);
+  };
+
+  const batchSubmit = async () => {
+    if (!confirm(`Submit ${selectedLeads.length} appeals via Gateway?`)) return;
+    setLoading(true);
+    const res = await fetch('/api/batch-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadIds: selectedLeads })
+    });
+    if (res.ok) {
+        alert('Batch Submission Complete.');
+        setSelectedLeads([]);
         fetchData();
     }
     setLoading(false);
@@ -191,7 +206,7 @@ function App() {
         <div className="setup-banner" style={{ background: '#fffaf0', border: '1px solid #f6ad55', color: '#dd6b20' }}>
             <span className="icon">🧠</span>
             <div className="banner-content">
-                <strong>Intelligence Refinement:</strong> {refinementCount} denials have been parsed. The Medical Director is auto-refining next defense strategy.
+                <strong>Intelligence Refinement:</strong> {refinementCount} denials have been parsed. The Medical Director is auto-refining the next defense strategy.
             </div>
         </div>
       )}
@@ -246,29 +261,39 @@ function App() {
                 )}
             </div>
             <div className="grid">
-              {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${lead.status === 'OCR Required' ? 'ocr' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => setSelectedLeads(prev => prev.includes(lead.id) ? prev.filter(l => l !== lead.id) : [...prev, lead.id])}>
-                  <div className="card-header">
-                    <div className="title-group">
-                      <h3>{lead.user}</h3>
-                      {lead.due_at && <span className="deadline">⌛ Due soon</span>}
+              {leads.map((lead, i) => {
+                  const score = lead.defense_audit ? (
+                      (lead.defense_audit.has_clinical_research ? 30 : 0) +
+                      (lead.defense_audit.has_ehr_data ? 40 : 0) +
+                      (lead.defense_audit.has_payer_rule ? 30 : 0)
+                  ) : 0;
+                  
+                  return (
+                    <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${lead.status === 'OCR Required' ? 'ocr' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => setSelectedLeads(prev => prev.includes(lead.id) ? prev.filter(l => l !== lead.id) : [...prev, lead.id])}>
+                      <div className="card-header">
+                        <div className="title-group">
+                          <h3>{lead.user}</h3>
+                          <div className="defense-meter">
+                              <span className="meter-label">DEFENSE SCORE: {score}%</span>
+                              <div className="meter-bg"><div className="meter-fill" style={{ width: `${score}%`, background: score > 70 ? '#38a169' : '#f6ad55' }}></div></div>
+                          </div>
+                        </div>
+                        <div className="header-badges">
+                          {lead.ehr_verified && <span className="badge success" style={{fontSize: '0.5rem'}}>EHR VERIFIED</span>}
+                          <span className="probability-tag">{lead.success_probability}% Chance</span>
+                          <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <p className="pain-point">{lead.pain_point}</p>
+                      {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing Active...</div>}
+                      <button className="btn-view" onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingLead(lead);
+                        setEditedText(lead.edited_appeal || lead.drafted_appeal);
+                      }}>Review Clinical Package</button>
                     </div>
-                    <div className="header-badges">
-                      {lead.ehr_verified && <span className="badge success" style={{fontSize: '0.5rem'}}>EHR VERIFIED</span>}
-                      <span className="probability-tag">{lead.success_probability}% Chance</span>
-                      <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
-                      <span className={`badge ${lead.status === 'Settled' ? 'success' : (lead.status === 'Healing Required' ? 'error' : 'info')}`}>{lead.status}</span>
-                    </div>
-                  </div>
-                  <p className="pain-point">{lead.pain_point}</p>
-                  {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing Active...</div>}
-                  <button className="btn-view" onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingLead(lead);
-                    setEditedText(lead.edited_appeal || lead.drafted_appeal);
-                  }}>Review Clinical Package</button>
-                </div>
-              ))}
+                  );
+              })}
             </div>
           </section>
         )}
@@ -343,7 +368,6 @@ function App() {
                         <button className="btn-view" style={{marginTop: '1rem'}} onClick={() => window.open(item.url, '_blank')}>View Source Evidence</button>
                     </div>
                 ))}
-                {intelLibrary.length === 0 && <p className="no-data">No clinical precedent indexed. Spawning a new research cycle will populate this library.</p>}
             </div>
           </section>
         )}
@@ -357,7 +381,7 @@ function App() {
                     <tr key={i}><td>{log.username}</td><td><strong>{log.insurance_type}</strong></td><td>{new Date(log.submitted_at).toLocaleDateString()}</td><td><span className="badge info">{log.status}</span></td></tr>
                 ))}</tbody>
             </table>
-            <button className="btn-primary" style={{marginTop: '1rem'}} onClick={() => alert('Exporting Audit Package to HIPAA-Safe Cloud...')}>Export 7-Day Audit CSV</button>
+            <button className="btn-primary" style={{marginTop: '1rem'}} onClick={() => alert('Exporting Audit Package...')}>Export 7-Day Audit CSV</button>
           </section>
         )}
 
@@ -381,6 +405,7 @@ function App() {
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
               <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>P2P Brief</button>
+              <button className="btn-secondary" onClick={() => window.open(`/api/export-audit?leadId=${editingLead.id}`, '_blank')}>Audit Pack</button>
               {editingLead.status === 'Escalated' && (
                 <button className="btn-escalate" onClick={() => escalateToCMS(editingLead.id)}>File CMS Complaint</button>
               )}

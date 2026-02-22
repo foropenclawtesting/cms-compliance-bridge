@@ -24,7 +24,7 @@ const leads = [
         insurance_type: "Aetna",
         status: "Drafted",
         estimated_value: 15000,
-        clinical_synthesis: `### CASE 1: Aetna – Out-of-Network (OON) Appeal
+        drafted_appeal: `### CASE 1: Aetna – Out-of-Network (OON) Appeal
 Subject: Formal Appeal of Denied Claim – Denial of Pre-Authorized Out-of-Network Services
 
 Clinical Narrative:
@@ -43,7 +43,7 @@ Aetna’s retrospective "OON deficiency" finding contradicts its own prior clini
         insurance_type: "Medicare Advantage",
         status: "Drafted",
         estimated_value: 45000,
-        clinical_synthesis: `### CASE 2: Medicare Advantage – SNF Discharge Appeal
+        drafted_appeal: `### CASE 2: Medicare Advantage – SNF Discharge Appeal
 Subject: Expedited Appeal of Discharge Plan – Preservation of Skilled Nursing Facility (SNF) Level of Care
 
 Clinical Narrative:
@@ -65,7 +65,7 @@ The patient lacks the physical capacity for a safe community-based discharge. Un
         insurance_type: "Independence Administrators (BCBS)",
         status: "Drafted",
         estimated_value: 8500,
-        clinical_synthesis: `### CASE 3: BCBS/Independence Administrators – Gender Affirming Surgery (GAS)
+        drafted_appeal: `### CASE 3: BCBS/Independence Administrators – Gender Affirming Surgery (GAS)
 Subject: Clinical Justification for CPT 64466 – Refutation of 'Exploratory' Status
 
 Clinical Narrative:
@@ -78,6 +78,7 @@ CPT 64466 is not an exploratory procedure; it is a targeted, ultrasound-guided r
 The designation of 64466 as 'exploratory' is clinically incorrect; it is a well-established anesthesia technique. We request an immediate re-evaluation of this claim based on its status as a medically necessary component of the primary surgical encounter.`,
         strategy: "CPT_64466_JUSTIFICATION"
     }
+
 ];
 
 async function run() {
