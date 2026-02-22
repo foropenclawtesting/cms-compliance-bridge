@@ -139,7 +139,20 @@ function App() {
     setLoading(false);
   };
 
-  const [simChat, setSimChat] = useState([]);
+  const [discoveryView, setDiscoveryView] = useState(null);
+
+  const launchDiscovery = async (leadId) => {
+    setLoading(true);
+    const res = await fetch('/api/generate-discovery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId })
+    });
+    const data = await res.json();
+    setDiscoveryView(data.discoveryText);
+    setLoading(false);
+    fetchData();
+  };
 
   const runSimulation = async (lead) => {
     const arg = prompt("Your Clinical Argument:");
@@ -516,6 +529,17 @@ function App() {
             <pre className="appeal-editor" style={{ background: '#fff5f5', color: '#c53030' }}>{complaintView}</pre>
             <div className="modal-actions">
               <button className="btn-primary" style={{ background: '#c53030' }} onClick={() => setComplaintView(null)}>Close</button>
+            </div>
+          </div>
+        </section>
+      )}
+      {discoveryView && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <div className="modal-header"><h2>Litigation Discovery Demand</h2></div>
+            <pre className="appeal-editor" style={{ background: '#1a202c', color: '#cbd5e0' }}>{discoveryView}</pre>
+            <div className="modal-actions">
+              <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close & Log Phase</button>
             </div>
           </div>
         </section>
