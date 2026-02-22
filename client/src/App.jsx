@@ -58,9 +58,22 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const [marketBench, setMarketBench] = useState(null);
+
+  const fetchMarketBench = async () => {
+    const res = await fetch('/api/network-intelligence?procedure=All&payer=All', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+    setMarketBench(data);
+  };
+
   useEffect(() => {
     if (session) {
         fetchData();
+        fetchPortals();
+        fetchRules();
+        fetchMarketBench();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
@@ -481,6 +494,16 @@ function App() {
 
                 <div className="side-analytics">
                     <h2>Payer Performance</h2>
+                    {marketBench && (
+                        <div className="rc-card" style={{marginBottom: '1rem', border: '1px solid #3182ce', background: '#ebf8ff'}}>
+                            <span className="badge info">NETWORK BENCHMARK</span>
+                            <div className="rc-info" style={{marginTop: '0.5rem'}}>
+                                <span className="rc-label">Global Win Rate</span>
+                                <span className="rc-val" style={{color: '#3182ce'}}>{marketBench.global_win_rate}%</span>
+                            </div>
+                            <p className="form-note">Your win rate is <b>{analytics.forecast.avgWinRate}%</b>. Network intelligence suggests 12% additional recovery potential.</p>
+                        </div>
+                    )}
                     <div className="performance-list">
                       {analytics.payers.map((p, i) => (
                         <div key={i} className={`perf-card ${p.riskScore > 50 ? 'danger' : ''}`}>
