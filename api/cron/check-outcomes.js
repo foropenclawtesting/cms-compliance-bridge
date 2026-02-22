@@ -1,5 +1,6 @@
 const supabase = require('../services/supabaseClient');
 const axios = require('axios');
+const notify = require('../services/notification-service');
 
 export default async function handler(req, res) {
     // Auth for Vercel Cron
@@ -62,6 +63,8 @@ export default async function handler(req, res) {
                         settled_at: new Date().toISOString(),
                         recovered_amount: lead.estimated_value
                     }).eq('id', lead.id);
+                    
+                    await notify.sendUpdate(lead, 'VICTORY');
                     results.victories++;
                 }
             } catch (fhirErr) {

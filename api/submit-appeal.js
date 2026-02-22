@@ -4,6 +4,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 
 const pdfEngine = require('./services/pdf-engine');
+const notify = require('./services/notification-service');
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).end();
@@ -73,6 +74,9 @@ export default async function handler(req, res) {
             .eq('id', leadId);
 
         if (updateError) throw updateError;
+
+        // 5. Proactive Patient Notification
+        await notify.sendUpdate(lead, 'SUBMITTED');
 
         return res.status(200).json({
             success: true,
