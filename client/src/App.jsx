@@ -212,9 +212,9 @@ function App() {
 
         <div className="stats-bar">
           <div className="stat"><span className="label">Total Potential</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
-          <div className="stat"><span className="label">Forecasted Win</span><span className="value info">${Math.round(analytics.forecast.totalPendingValue * 0.65).toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Weighted Forecast</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
           <div className="stat"><span className="label">Recovered Amount</span><span className="value success">${totalRecovered.toLocaleString()}</span></div>
-          <div className="stat"><span className="label">Win Rate</span><span className="value success">65%</span></div>
+          <div className="stat"><span className="label">Avg. Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
       </header>
 

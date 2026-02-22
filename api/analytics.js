@@ -51,7 +51,6 @@ export default async function handler(req, res) {
 
         const stats = Object.values(payerStats).map(p => {
             const winRate = p.processed > 0 ? (p.wins / p.processed) : 0.65;
-            // Risk Score: Higher violations and lower win rates = Higher Risk
             const riskScore = Math.min(100, Math.round((p.violations * 20) + ((1 - winRate) * 50)));
             
             return {
@@ -62,12 +61,24 @@ export default async function handler(req, res) {
             };
         }).sort((a, b) => b.riskScore - a.riskScore);
 
+        // Calculate Weighted Forecast (Value * Probability)
+        let totalPendingValue = 0;
+        let weightedForecast = 0;
+
+        leads.filter(l => l.status !== 'Settled').forEach(l => {
+            const val = parseFloat(l.estimated_value) || 0;
+            const prob = 65; // Base probability
+            totalPendingValue += val;
+            weightedForecast += (val * (prob / 100));
+        });
+
         return res.status(200).json({
             payers: stats,
             trends: Object.values(patterns).filter(p => p.count >= 2).sort((a, b) => b.value - a.value),
             forecast: {
-                totalPendingValue: leads.filter(l => l.status !== 'Settled').reduce((s, l) => s + (parseFloat(l.estimated_value) || 0), 0),
-                weightedForecast: 0 // handled in UI
+                totalPendingValue,
+                weightedForecast: Math.round(weightedForecast),
+                avgWinRate: stats.length > 0 ? Math.round(stats.reduce((s, p) => s + p.winRate, 0) / stats.length) : 65
             }
         });
     } catch (error) {
