@@ -17,23 +17,18 @@ async function monitor() {
     if (fs.existsSync(STATE_FILE)) notifiedIds = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
 
     try {
-        // Fetch leads that are Drafted but not yet Submitted
         const { data: leads, error } = await supabase
             .from('healthcare_denial_leads')
-            .select('id, username, insurance_type, priority, due_at, status')
-            .eq('status', 'Drafted')
-            .not('due_at', 'is', null);
+            .select('*');
 
         if (error) throw error;
 
         const now = new Date();
-        const urgentThreshold = 24 * 60 * 60 * 1000; // 24 hours
+        const urgentThreshold = 24 * 60 * 60 * 1000;
 
         leads.forEach(lead => {
-            const timeLeft = new Date(lead.due_at) - now;
-            
             // 1. Alert on New High Priority Drafts
-            if (lead.priority === 'High Priority' && !notifiedIds.includes(`new-${lead.id}`)) {
+            if (lead.status === 'Drafted' && lead.priority === 'High Priority' && !notifiedIds.includes(`new-${lead.id}`)) {
                 console.log(`---NOTIFICATION_START---`);
                 console.log(`URGENT: New High-Priority Draft ready for ${lead.username}.`);
                 console.log(`Action: Review and Transmit to ${lead.insurance_type}.`);
@@ -41,14 +36,25 @@ async function monitor() {
                 notifiedIds.push(`new-${lead.id}`);
             }
 
-            // 2. Alert on Approaching Deadlines (< 24h)
-            if (timeLeft > 0 && timeLeft < urgentThreshold && !notifiedIds.includes(`deadline-${lead.id}`)) {
-                const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+            // 2. Alert on Approaching Deadlines
+            if (lead.status === 'Drafted' && lead.due_at) {
+                const timeLeft = new Date(lead.due_at) - now;
+                if (timeLeft > 0 && timeLeft < urgentThreshold && !notifiedIds.includes(`deadline-${lead.id}`)) {
+                    const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+                    console.log(`---NOTIFICATION_START---`);
+                    console.log(`⚠️ DEADLINE ALERT: Appeal for ${lead.username} expires in ${hoursLeft} hours!`);
+                    console.log(`---NOTIFICATION_END---`);
+                    notifiedIds.push(`deadline-${lead.id}`);
+                }
+            }
+
+            // 3. ALERT ON VICTORIES (New!)
+            if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && !notifiedIds.includes(`victory-${lead.id}`)) {
                 console.log(`---NOTIFICATION_START---`);
-                console.log(`⚠️ DEADLINE ALERT: Appeal for ${lead.username} expires in ${hoursLeft} hours!`);
-                console.log(`Regulatory: CMS-0057-F window closing for ${lead.insurance_type}.`);
+                console.log(`🎉 REVENUE RECOVERED: Appeal for ${lead.username} was APPROVED!`);
+                console.log(`Payer: ${lead.insurance_type} | Recovered: $${parseFloat(lead.recovered_amount).toLocaleString()}`);
                 console.log(`---NOTIFICATION_END---`);
-                notifiedIds.push(`deadline-${lead.id}`);
+                notifiedIds.push(`victory-${lead.id}`);
             }
         });
 

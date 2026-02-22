@@ -25,7 +25,8 @@ export default async function handler(req, res) {
             due_at: lead.due_at,
             final_outcome: lead.final_outcome,
             recovered_amount: lead.recovered_amount,
-            settled_at: lead.settled_at
+            settled_at: lead.settled_at,
+            submission_status: lead.submission_status
         }));
 
         return res.status(200).json(leads);

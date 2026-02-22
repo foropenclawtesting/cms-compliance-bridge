@@ -26,13 +26,17 @@ exports.checkDenials = async (payerId, claimId) => {
 
     // 2. Fallback to High-Fidelity Mock if no sandbox is reachable
     console.log(`[FHIR] Falling back to Mock Engine for Claim ${claimId}`);
+    
+    // TEST OVERRIDE: Simulate an approval if the claimId ends in '99'
+    const isMockApproval = claimId.endsWith('99');
+
     return {
         status: 'success',
         source: 'MOCK_ENGINE',
         payerId,
         claimId,
-        denialFound: true,
-        reason: "Claim requires clinical documentation supporting Medical Necessity (CMS-0057-F Section 4.2).",
+        denialFound: !isMockApproval,
+        reason: isMockApproval ? "Prior Authorization Approved per CMS-0057-F appeal." : "Claim requires clinical documentation supporting Medical Necessity (CMS-0057-F Section 4.2).",
         timestamp: new Date().toISOString()
     };
 };

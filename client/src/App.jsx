@@ -153,7 +153,9 @@ function App() {
                   <div className="header-badges">
                     {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
                     {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}
-                    {lead.status === 'Submitted' && <span className="badge info">Submitted</span>}
+                    {lead.status === 'Submitted' && <span className={`badge info ${lead.submission_status === 'Failed' ? 'error' : ''}`}>
+                      {lead.submission_status === 'Delivered' ? '✅ Fax Delivered' : (lead.submission_status === 'Failed' ? '❌ Fax Failed' : '📡 Transmitting...')}
+                    </span>}
                     {lead.status === 'Settled' && <span className="badge success">Settled</span>}
                   </div>
                 </div>
