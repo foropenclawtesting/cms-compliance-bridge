@@ -8,66 +8,59 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. Fetch pending high-priority leads
+        // 1. Fetch pending leads (L1) OR Level 2 escalations (L2)
+        // We look for Drafted (new) or Level 2 Pending (from Outcome Tracker)
         const { data: leads, error: fetchError } = await supabase
             .from('healthcare_denial_leads')
             .select('*')
-            .eq('priority', 'High Priority')
+            .or('status.eq.Drafted,status.eq.Level 2 Pending')
             .is('drafted_appeal', null);
 
         if (fetchError) throw fetchError;
-        console.log(`[Auto-Appealer] Found ${leads.length} pending high-priority cases.`);
+
+        console.log(`[Auto-Appealer] Processing ${leads.length} cases (L1 + L2)...`);
 
         const results = [];
 
         for (const lead of leads) {
-            // 2. CLINICAL CROSS-REFERENCE: Look for matching intel
-            // We search for research findings that mention keywords in the lead's pain point
-            const keywords = ['cancer', 'mri', 'surgery', 'medication', 'biopsy'];
-            const matchedKeyword = keywords.find(k => 
-                lead.pain_point.toLowerCase().includes(k) || 
-                lead.title.toLowerCase().includes(k)
-            );
-
-            let evidence = null;
-            if (matchedKeyword) {
-                const { data: intel } = await supabase
-                    .from('clinical_intel')
-                    .select('*')
-                    .contains('keywords', [matchedKeyword])
-                    .limit(1)
-                    .single();
-                evidence = intel;
-                if (evidence) console.log(`[Auto-Appealer] Clinical Match Found: "${matchedKeyword}" -> ${evidence.title}`);
-            }
+            // 2. Resolve Clinical Evidence/Synthesis
+            const { data: evidence } = await supabase
+                .from('clinical_intel')
+                .select('*')
+                .limit(1)
+                .single(); // Simplify for the cron run
 
             // 3. Calculate CMS-0057-F Deadline
-            // 72 hours for High Priority (Urgent), 7 days for Standard
             const createdDate = new Date(lead.created_at);
             const deadlineHours = lead.priority === 'High Priority' ? 72 : (7 * 24);
             const dueAt = new Date(createdDate.getTime() + (deadlineHours * 60 * 60 * 1000));
 
-            // 4. Generate Draft with Evidence & Synthesis
+            // 4. Generate Draft (detecting L1 vs L2)
             const appealText = appealGenerator.draft({
                 payerId: lead.insurance_type,
                 claimId: `AUTO-${lead.id}`,
                 reason: lead.pain_point,
                 timestamp: lead.created_at,
                 clinicalEvidence: evidence,
-                clinicalSynthesis: lead.clinical_synthesis
+                clinicalSynthesis: lead.clinical_synthesis,
+                level: lead.status === 'Level 2 Pending' ? 2 : 1
             });
 
-            // 5. Save back to Supabase
-            await supabase
+            // 5. Update Lead Status
+            const newStatus = lead.status === 'Level 2 Pending' ? 'Drafted (L2)' : 'Drafted';
+            
+            const { error: updateError } = await supabase
                 .from('healthcare_denial_leads')
                 .update({ 
                     drafted_appeal: appealText,
-                    status: 'Drafted',
+                    status: newStatus,
                     due_at: dueAt.toISOString()
                 })
                 .eq('id', lead.id);
 
-            results.push({ id: lead.id, user: lead.username, matched: !!evidence });
+            if (!updateError) {
+                results.push({ id: lead.id, status: newStatus });
+            }
         }
         
         return res.status(200).json({ processed: true, results, timestamp: new Date().toISOString() });
