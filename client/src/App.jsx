@@ -74,6 +74,10 @@ function App() {
     .filter(l => l.status === 'Settled')
     .reduce((sum, l) => sum + (parseFloat(l.recovered_amount) || 0), 0);
 
+  const recoveryRate = totalRecoverable > 0 
+    ? Math.round((totalSettled / (totalRecoverable + totalSettled)) * 100)
+    : 0;
+
   const bulkTransmit = async () => {
     if(!confirm(`Transmit all ${pendingDrafts.length} prepared appeals to their respective payers?`)) return;
     setLoading(true);
@@ -127,6 +131,10 @@ function App() {
           <div className="stat">
             <span className="label">Win Rate</span>
             <span className="value success">{winRate}%</span>
+          </div>
+          <div className="stat">
+            <span className="label">Recovery Progress</span>
+            <span className="value success">{recoveryRate}%</span>
           </div>
         </div>
       </header>

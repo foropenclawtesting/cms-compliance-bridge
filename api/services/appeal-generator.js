@@ -15,7 +15,7 @@ exports.draft = (details) => {
         evidenceSection = `
 CLINICAL NECESSITY JUSTIFICATION & POLICY ADHERENCE:
 ${clinicalSynthesis}
-(Ref: Clinical Peer Review & Payer Medical Policy Analysis)`;
+(Ref: Automated Clinical Peer Review & Payer Medical Policy Analysis)`;
     } else if (clinicalEvidence) {
         evidenceSection = `
 CLINICAL EVIDENCE SUPPORT:

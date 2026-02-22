@@ -14,6 +14,8 @@ header { margin-bottom: 3rem; text-align: center; border-bottom: 1px solid #eee;
 .stat .value.success { color: #38a169; }
 .stat .value.pending { color: #d69e2e; }
 
+.header-badges .value-tag { background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+
 .bulk-actions { margin: 2rem 0; display: flex; justify-content: flex-end; padding: 1rem; background: #fffaf0; border: 1px dashed #f6ad55; border-radius: 8px; }
 .btn-bulk { background: #d69e2e; color: white; width: auto; padding: 0.75rem 2rem; font-weight: bold; cursor: pointer; border: none; border-radius: 6px; }
 
