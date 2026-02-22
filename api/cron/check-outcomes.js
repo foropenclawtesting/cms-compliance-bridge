@@ -1,6 +1,7 @@
 const supabase = require('../services/supabaseClient');
 const axios = require('axios');
 const notify = require('../services/notification-service');
+const portals = require('../services/portal-connector');
 
 export default async function handler(req, res) {
     // Auth for Vercel Cron
@@ -72,6 +73,21 @@ export default async function handler(req, res) {
             }
             
             results.reconciled++;
+
+            // C. Check Proprietary Payer Portals (Availity/Optum)
+            const portalResult = await portals.checkPortalStatus(lead);
+            if (portalResult.status === 'Approved') {
+                await supabase.from('healthcare_denial_leads').update({ 
+                    status: 'Settled',
+                    final_outcome: 'Approved',
+                    settled_at: new Date().toISOString(),
+                    recovered_amount: lead.estimated_value,
+                    submission_log: `${lead.submission_log}\n[Portal Sync] ${portalResult.message}`
+                }).eq('id', lead.id);
+                
+                await notify.sendUpdate(lead, 'VICTORY');
+                results.victories++;
+            }
         }
 
         return res.status(200).json(results);
