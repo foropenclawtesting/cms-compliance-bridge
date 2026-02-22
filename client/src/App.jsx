@@ -48,13 +48,35 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const [rules, setRules] = useState([]);
+  const [newRule, setNewRule] = useState({ payer_name: '', reason_code: '', strategy: '' });
+
   useEffect(() => {
     if (session) {
         fetchData();
+        fetchRules();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
   }, [session]);
+
+  const fetchRules = async () => {
+    const res = await fetch('/api/rules', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+    const data = await res.json();
+    setRules(Array.isArray(data) ? data : []);
+  };
+
+  const saveRule = async () => {
+    setLoading(true);
+    await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(newRule)
+    });
+    setNewRule({ payer_name: '', reason_code: '', strategy: '' });
+    fetchRules();
+    setLoading(false);
+  };
 
   const fetchData = async () => {
     if (!session) return;
@@ -290,7 +312,32 @@ function App() {
 
         {activeTab === 'rules' && (
           <section className="rules-section">
-            <div className="section-header">
+            <div className="rules-grid">
+                <div className="rules-list-container">
+                    <h2>Active Payer Strategies</h2>
+                    <table className="rules-table">
+                        <thead><tr><th>Payer</th><th>Reason</th><th>Strategy</th></tr></thead>
+                        <tbody>{rules.map((r, i) => (
+                            <tr key={i}>
+                                <td><strong>{r.payer_name}</strong></td>
+                                <td><code>{r.reason_code}</code></td>
+                                <td>{r.strategy}</td>
+                            </tr>
+                        ))}</tbody>
+                    </table>
+                </div>
+                
+                <div className="rule-form">
+                    <h3>Program New Strategy</h3>
+                    <p className="form-note">Define how the Medical Director should handle specific denial patterns.</p>
+                    <input placeholder="Payer Name (e.g. Aetna)" value={newRule.payer_name} onChange={e => setNewRule({...newRule, payer_name: e.target.value})} />
+                    <input placeholder="Reason Code (e.g. CO-197)" value={newRule.reason_code} onChange={e => setNewRule({...newRule, reason_code: e.target.value})} />
+                    <textarea placeholder="Clinical Strategy / Evidence to Cite..." value={newRule.strategy} onChange={e => setNewRule({...newRule, strategy: e.target.value})} rows={5} />
+                    <button className="btn-primary" onClick={saveRule} disabled={loading}>Apply Strategy</button>
+                </div>
+            </div>
+
+            <div className="section-header" style={{marginTop: '4rem'}}>
                 <h2>Verified Payer Directory</h2>
                 <p>The **Self-Healing Agent** automatically updates these numbers if transmissions fail.</p>
             </div>

@@ -57,6 +57,17 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 .analytics-table th, .rules-table th { text-align: left; padding: 1rem; background: #f7fafc; font-size: 0.65rem; text-transform: uppercase; color: #718096; }
 .analytics-table td, .rules-table td { padding: 1rem; border-top: 1px solid #edf2f7; font-size: 0.85rem; }
 
+.list-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.card.selected { border: 2px solid #3182ce; background: #ebf8ff; }
+.btn-primary { background: #3182ce; color: white; padding: 0.75rem 1.5rem; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; width: auto; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.rules-grid { display: grid; grid-template-columns: 1fr 350px; gap: 3rem; }
+.rule-form { background: #f8fafc; padding: 2rem; border-radius: 12px; border: 1px solid #e2e8f0; }
+.rule-form h3 { margin-top: 0; }
+.rule-form input, .rule-form textarea { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e0; border-radius: 6px; margin-bottom: 1rem; box-sizing: border-box; }
+.form-note { font-size: 0.75rem; color: #718096; margin-bottom: 1.5rem; }
+
 .login-screen { height: 100vh; display: flex; align-items: center; justify-content: center; background: #f7fafc; }
 .login-card { background: white; padding: 3rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 400px; text-align: center; }
 .login-card input { width: 100%; padding: 0.75rem; margin-bottom: 1rem; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
