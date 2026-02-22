@@ -1,7 +1,28 @@
+const supabase = require('./supabaseClient');
+
 /**
- * Recursive Intel Scout v1.0
- * Identifies clinical gaps in payer rejections and triggers new evidence search.
+ * Recursive Intel Scout v2.0
+ * Integrates EviDex (Internal Intel) with External Recursive Search.
  */
+
+exports.getClinicalDefense = async (procedure) => {
+    console.log(`[EviDex] Querying Internal Clinical Intel for: ${procedure}...`);
+    
+    // 1. Check EviDex Library First (Fast Path)
+    const { data: internalIntel } = await supabase
+        .from('clinical_intel')
+        .select('*')
+        .contains('keywords', [procedure.toLowerCase()])
+        .limit(1);
+
+    if (internalIntel && internalIntel.length > 0) {
+        console.log(`[EviDex] Internal Match Found: ${internalIntel[0].title}`);
+        return internalIntel[0];
+    }
+
+    // 2. Fallback to Web-Search Logic (Slow Path)
+    return null; // Heartbeat picks up the null and triggers web_search
+};
 
 exports.identifyGap = (rejectionText) => {
     const text = rejectionText.toLowerCase();

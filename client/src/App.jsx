@@ -383,6 +383,7 @@ function App() {
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
               <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>Generate P2P Brief</button>
+              <button className="btn-secondary" onClick={() => window.open(`/api/export-audit?leadId=${editingLead.id}`, '_blank')}>Download Audit Package</button>
               {editingLead.status === 'Escalated' && (
                 <button className="btn-escalate" style={{width: 'auto', padding: '0.75rem 1.5rem'}} onClick={() => escalateToCMS(editingLead.id)}>File CMS Complaint</button>
               )}
