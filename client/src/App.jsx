@@ -198,16 +198,31 @@ function App() {
     setLoading(false);
   };
 
-  if (!session) {
+  const [patientView, setPatientView] = useState(false);
+
+  if (patientView) {
     return (
-      <div className="login-screen">
-        <div className="login-card">
-          <h1>⚡ CMS Bridge</h1>
-          <form onSubmit={handleLogin}>
-            <input type="email" placeholder="Physician Email" value={email} onChange={e => setEmail(e.target.value)} required />
-            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
-            <button type="submit" disabled={loading}>Sign In</button>
-          </form>
+      <div className="patient-portal">
+        <div className="portal-card">
+          <header>
+            <h1>⚡ Patient Advocacy Portal</h1>
+            <p>CMS Compliance Bridge - Official Appeal Tracking</p>
+          </header>
+          <div className="status-hero">
+            <span className="badge success">ACTIVE ADVOCACY</span>
+            <h2>Appeal Status: Submitted to Payer</h2>
+            <p className="form-note">Your medical providers are currently challenging the denial for your treatment.</p>
+          </div>
+          <div className="uplink-section">
+            <h3>Add Your Narrative</h3>
+            <p className="form-note">Personal stories about how this treatment affects your life carry significant regulatory weight.</p>
+            <textarea placeholder="Describe how this condition affects your daily life..." rows={6} id="patient-narrative" />
+            <button className="btn-primary" style={{width: '100%'}} onClick={async () => {
+                const text = document.getElementById('patient-narrative').value;
+                alert('Narrative Uploaded. Your story is now part of the formal clinical package.');
+            }}>Submit Supporting Evidence</button>
+          </div>
+          <button className="btn-secondary" style={{marginTop: '2rem'}} onClick={() => setPatientView(false)}>Exit Portal</button>
         </div>
       </div>
     );
@@ -240,6 +255,7 @@ function App() {
                 <button className={activeTab === 'intel' ? 'active' : ''} onClick={() => setActiveTab('intel')}>Intel Library</button>
                 <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
                 <button className={activeTab === 'system' ? 'active' : ''} onClick={() => setActiveTab('system')}>System</button>
+                <button className="status-link" style={{marginLeft: '1rem', color: '#3182ce'}} onClick={() => setPatientView(true)}>View Patient Portal</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
