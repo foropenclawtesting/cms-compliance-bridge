@@ -30,6 +30,10 @@ export default async function handler(req, res) {
                 );
             });
 
+            const winRate = 65; // Base fallback win rate
+            const urgencyMultiplier = lead.priority === 'High Priority' ? 1.15 : 1.0;
+            const probability = Math.min(98, Math.round(winRate * urgencyMultiplier));
+
             return {
                 id: lead.id,
                 user: lead.username,
@@ -48,6 +52,7 @@ export default async function handler(req, res) {
                 recovered_amount: lead.recovered_amount,
                 submission_status: lead.submission_status,
                 submission_log: lead.submission_log,
+                success_probability: probability,
                 clinical_evidence: match || null
             };
         });
