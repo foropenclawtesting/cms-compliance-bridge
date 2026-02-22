@@ -102,15 +102,8 @@ function App() {
                   </button>
                   {lead.status === 'Drafted' && (
                     <div className="submission-control">
-                      <input 
-                        type="text" 
-                        placeholder="Recipient Fax #" 
-                        defaultValue="1-800-555-0199"
-                        id={`fax-${lead.id}`}
-                      />
                       <button className="btn-submit" onClick={async () => {
-                        const faxNum = document.getElementById(`fax-${lead.id}`).value;
-                        if(!confirm(`Submit this appeal via Electronic Fax to ${faxNum}?`)) return;
+                        if(!confirm(`Transmit this appeal to the regulatory department for ${lead.insurance_type}?`)) return;
                         
                         const res = await fetch('/api/submit-appeal', {
                           method: 'POST',
@@ -118,11 +111,12 @@ function App() {
                           body: JSON.stringify({ 
                             leadId: lead.id, 
                             appealText: lead.drafted_appeal,
-                            recipientFax: faxNum
+                            insuranceName: lead.insurance_type
                           })
                         });
+                        const data = await res.json();
                         if(res.ok) {
-                          alert("Appeal transmitted successfully!");
+                          alert(`Appeal transmitted successfully to ${data.recipient} (${data.fax})`);
                           fetchLeads();
                         }
                       }}>Transmit Appeal</button>

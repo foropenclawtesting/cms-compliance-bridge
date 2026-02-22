@@ -1,0 +1,34 @@
+{
+    "payers": [
+        {
+            "name": "Cigna",
+            "aliases": ["Cigna Health", "Cigna Healthcare"],
+            "fax": "1-859-410-2422",
+            "department": "National Appeals & Grievances"
+        },
+        {
+            "name": "UnitedHealthcare",
+            "aliases": ["UHC", "United Health"],
+            "fax": "1-801-938-2100",
+            "department": "Clinical Appeals"
+        },
+        {
+            "name": "Aetna",
+            "aliases": ["Aetna CVS"],
+            "fax": "1-859-425-3379",
+            "department": "Provider Appeals"
+        },
+        {
+            "name": "Blue Cross Blue Shield",
+            "aliases": ["BCBS", "Anthem"],
+            "fax": "1-888-285-2242",
+            "department": "Expedited Medical Appeals"
+        },
+        {
+            "name": "Humana",
+            "aliases": ["Humana Military"],
+            "fax": "1-800-223-7473",
+            "department": "Provider Grievance & Appeals"
+        }
+    ]
+}
