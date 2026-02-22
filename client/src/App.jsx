@@ -117,6 +117,10 @@ function App() {
             <span className="label">Recovered Revenue</span>
             <span className="value success">${totalSettled.toLocaleString()}</span>
           </div>
+          <div className="stat">
+            <span className="label">Win Rate</span>
+            <span className="value success">{winRate}%</span>
+          </div>
         </div>
       </header>
 
