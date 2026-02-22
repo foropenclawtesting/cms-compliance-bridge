@@ -1,30 +1,29 @@
-const fs = require('fs');
+const supabase = require('../services/supabaseClient');
 
 export default async function handler(req, res) {
-    // Check for Vercel Cron authorization (standard security practice)
-    const authHeader = req.headers.get('authorization');
+    // Basic Cron Auth check
+    const authHeader = req.headers['authorization'];
     if (process.env.NODE_ENV === 'production' && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        // return res.status(401).end('Unauthorized');
+        return res.status(401).end('Unauthorized');
     }
 
-    const LEADS_PATH = '/Users/server/openclaw/data/leads.json';
-
     try {
-        if (!fs.existsSync(LEADS_PATH)) {
-            return res.status(200).json({ message: 'No leads file found to watch.' });
-        }
+        const { data, error } = await supabase
+            .from('healthcare_denial_leads')
+            .select('*')
+            .eq('priority', 'High Priority')
+            .eq('status', 'Pending');
 
-        const data = JSON.parse(fs.readFileSync(LEADS_PATH, 'utf8'));
-        const highPriority = data.filter(l => l.priority === 'High Priority');
+        if (error) throw error;
 
-        console.log(`[Cron] Watcher executed. Found ${highPriority.length} high priority leads.`);
+        console.log(`[Cron] Watcher found ${data.length} pending high-priority leads in Supabase.`);
         
-        // In a serverless environment, we'd trigger an email or webhook here
-        // instead of just logging to a persistent console.
+        // This is where we would trigger the Auto-Appeal generator or 
+        // send a notification to Telegram/Signal.
         
         return res.status(200).json({
             processed: true,
-            highPriorityCount: highPriority.length,
+            highPriorityCount: data.length,
             timestamp: new Date().toISOString()
         });
     } catch (error) {

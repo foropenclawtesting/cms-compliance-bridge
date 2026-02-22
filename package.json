@@ -18,6 +18,7 @@
   "author": "Amber/Cipher",
   "license": "ISC",
   "dependencies": {
+    "@supabase/supabase-js": "^2.97.0",
     "axios": "^1.6.0",
     "concurrently": "^8.2.2",
     "express": "^4.18.2"
