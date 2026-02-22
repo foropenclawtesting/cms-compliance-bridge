@@ -191,6 +191,7 @@ function App() {
                 <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue</button>
                 <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Rules</button>
                 <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
+                <button className={activeTab === 'system' ? 'active' : ''} onClick={() => setActiveTab('system')}>System</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
@@ -310,47 +311,44 @@ function App() {
           </section>
         )}
 
-        {activeTab === 'rules' && (
+        {activeTab === 'system' && (
           <section className="rules-section">
-            <div className="rules-grid">
-                <div className="rules-list-container">
-                    <h2>Active Payer Strategies</h2>
-                    <table className="rules-table">
-                        <thead><tr><th>Payer</th><th>Reason</th><th>Strategy</th></tr></thead>
-                        <tbody>{rules.map((r, i) => (
-                            <tr key={i}>
-                                <td><strong>{r.payer_name}</strong></td>
-                                <td><code>{r.reason_code}</code></td>
-                                <td>{r.strategy}</td>
-                            </tr>
-                        ))}</tbody>
-                    </table>
+            <h2>System Connectivity Health</h2>
+            <div className="performance-grid">
+                <div className={`perf-card ${health.checks.database === 'Connected' ? '' : 'danger'}`}>
+                    <strong>Database</strong>
+                    <div className="val">{health.checks.database}</div>
+                    <p className="form-note">Supabase Cloud Persistence</p>
                 </div>
-                
-                <div className="rule-form">
-                    <h3>Program New Strategy</h3>
-                    <p className="form-note">Define how the Medical Director should handle specific denial patterns.</p>
-                    <input placeholder="Payer Name (e.g. Aetna)" value={newRule.payer_name} onChange={e => setNewRule({...newRule, payer_name: e.target.value})} />
-                    <input placeholder="Reason Code (e.g. CO-197)" value={newRule.reason_code} onChange={e => setNewRule({...newRule, reason_code: e.target.value})} />
-                    <textarea placeholder="Clinical Strategy / Evidence to Cite..." value={newRule.strategy} onChange={e => setNewRule({...newRule, strategy: e.target.value})} rows={5} />
-                    <button className="btn-primary" onClick={saveRule} disabled={loading}>Apply Strategy</button>
+                <div className={`perf-card ${health.checks.fhir_gateway.includes('Active') ? '' : 'danger'}`}>
+                    <strong>FHIR R4 Tunnel</strong>
+                    <div className="val">{health.checks.fhir_gateway}</div>
+                    <p className="form-note">Epic/Cerner Interoperability</p>
+                </div>
+                <div className={`perf-card ${health.checks.fax_gateway === 'Live' ? '' : 'danger'}`}>
+                    <strong>Fax Gateway</strong>
+                    <div className="val">{health.checks.fax_gateway}</div>
+                    <p className="form-note">Phaxio Transmission Service</p>
+                </div>
+                <div className={`perf-card ${health.checks.schema === 'Synchronized' ? '' : 'danger'}`}>
+                    <strong>Data Schema</strong>
+                    <div className="val">{health.checks.schema}</div>
+                    <p className="form-note">Regulatory Field Sync</p>
                 </div>
             </div>
-
-            <div className="section-header" style={{marginTop: '4rem'}}>
-                <h2>Verified Payer Directory</h2>
-                <p>The **Self-Healing Agent** automatically updates these numbers if transmissions fail.</p>
+            
+            <div style={{marginTop: '3rem'}}>
+                <h3>Environment Configuration</h3>
+                <p className="form-note">Masked values for HIPAA-safe security review.</p>
+                <table className="rules-table">
+                    <thead><tr><th>Key</th><th>Status</th></tr></thead>
+                    <tbody>
+                        <tr><td>SUPABASE_URL</td><td><span className="badge success">CONFIGURED</span></td></tr>
+                        <tr><td>PHAXIO_KEY</td><td><span className="badge info">{health.checks.fax_gateway === 'Live' ? 'DETECTED' : 'MISSING'}</span></td></tr>
+                        <tr><td>FHIR_BASE_URL</td><td><code>{health.checks.fhir_gateway.includes('Active') ? 'CONNECTED' : 'DEFAULT_SANDBOX'}</code></td></tr>
+                    </tbody>
+                </table>
             </div>
-            <table className="rules-table">
-                <thead><tr><th>Insurance Payer</th><th>Verified Fax</th><th>Last Verification</th></tr></thead>
-                <tbody>{directory.map((d, i) => (
-                    <tr key={i}>
-                        <td><strong>{d.payer_name}</strong></td>
-                        <td><code>{d.verified_fax}</code></td>
-                        <td><span className="badge info">{d.last_verified_by || 'Default'}</span></td>
-                    </tr>
-                ))}</tbody>
-            </table>
           </section>
         )}
       </main>
