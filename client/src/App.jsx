@@ -163,6 +163,7 @@ function App() {
                 <th>Denials Found</th>
                 <th>Potential Revenue</th>
                 <th>Win Rate</th>
+                <th>Avg. TAT</th>
                 <th>Recovered</th>
               </tr>
             </thead>
@@ -173,6 +174,7 @@ function App() {
                   <td>{stat.count}</td>
                   <td>${stat.totalValue.toLocaleString()}</td>
                   <td><span className="win-rate-pill">{stat.winRate}%</span></td>
+                  <td>{stat.avgTatDays} days</td>
                   <td className="success"><strong>${parseFloat(stat.wins * (stat.totalValue / (stat.count || 1))).toLocaleString()}</strong></td>
                 </tr>
               ))}
