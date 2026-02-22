@@ -52,8 +52,9 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 
 .analytics-section, .rules-section { margin-top: 3rem; background: white; padding: 2rem; border-radius: 12px; border: 1px solid #e2e8f0; text-align: left; }
 .trends-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
-.trend-card { background: #fffaf0; border: 1px solid #f6ad55; padding: 1.5rem; border-radius: 8px; position: relative; }
-.trend-badge { background: #f6ad55; color: white; font-size: 0.6rem; font-weight: bold; padding: 0.2rem 0.5rem; border-radius: 4px; position: absolute; top: -10px; }
+.trend-card { background: #f0fff4; border: 1px solid #38a169; padding: 1.5rem; border-radius: 8px; position: relative; }
+.trend-badge { background: #38a169; color: white; font-size: 0.6rem; font-weight: bold; padding: 0.2rem 0.5rem; border-radius: 4px; position: absolute; top: -10px; }
+.btn-escalate { background: #c53030; color: white; border: none; padding: 0.6rem; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
 .analytics-table, .rules-table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 0.85rem; }
 .analytics-table th, .rules-table th { text-align: left; padding: 1rem; background: #f7fafc; font-size: 0.65rem; text-transform: uppercase; color: #718096; }

@@ -1,13 +1,19 @@
-const supabase = require('../services/supabaseClient');
-const PDFDocument = require('pdfkit');
+const supabase = require('./services/supabaseClient');
+const { verifyUser } = require('./services/auth');
+
+/**
+ * Omnibus Defense Engine v1.0
+ * Aggregates systemic denials into a single regulatory demand.
+ */
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).end();
+    const user = await verifyUser(req, res);
+    if (!user) return;
 
     const { payer, procedure } = req.body;
 
     try {
-        // 1. Fetch all leads associated with this systemic trend
+        // 1. Fetch all associated leads for this systemic pattern
         const { data: leads, error } = await supabase
             .from('healthcare_denial_leads')
             .select('*')
@@ -15,46 +21,45 @@ export default async function handler(req, res) {
             .eq('title', procedure)
             .not('status', 'eq', 'Settled');
 
-        if (error || !leads.length) throw new Error('No active denials found for this trend.');
+        if (error || !leads.length) throw new Error('No active denials found for this pattern.');
 
-        const totalValue = leads.reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
+        const totalValue = leads.reduce((s, l) => s + (parseFloat(l.estimated_value) || 0), 0);
+        const claimIds = leads.map(l => l.id).join(', ');
 
-        // 2. Generate the Omnibus PDF
-        const doc = new PDFDocument({ margin: 50 });
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=Omnibus_Appeal_${payer.replace(/\s/g, '_')}.pdf`);
-        doc.pipe(res);
+        // 2. Draft the Systemic Regulatory Demand
+        const omnibusText = `
+DATE: ${new Date().toLocaleDateString()}
+TO: ${payer} - Office of the Chief Medical Officer / Regulatory Affairs
+RE: SYSTEMIC REGULATORY DEMAND - BATCH APPEAL
+MANDATE: CMS-0057-F Interoperability & Prior Authorization Final Rule
+Total Claims: ${leads.length} | Aggregate Value: $${totalValue.toLocaleString()}
 
-        doc.fillColor('#c53030').fontSize(22).text('NOTICE OF SYSTEMIC REGULATORY NON-COMPLIANCE', { align: 'center' });
-        doc.moveDown();
-        doc.fillColor('#2d3748').fontSize(10).text(`FOR ATTENTION OF: ${payer.toUpperCase()} COMPLIANCE & LEGAL DEPT`, { align: 'center' });
-        doc.moveDown(2);
+Dear Chief Medical Officer,
 
-        doc.fontSize(12).text(`This document constitutes a consolidated appeal and formal Notice of Violation regarding a identified systemic denial pattern for:`, { lineGap: 3 });
-        doc.moveDown();
-        doc.fillColor('#2b6cb0').fontSize(14).text(`PROCEDURE: ${procedure}`, { bold: true });
-        doc.fillColor('#2d3748').fontSize(12).text(`TOTAL AGGREGATE IMPACT: $${totalValue.toLocaleString()}`);
-        doc.moveDown(2);
+This letter serves as an Omnibus Regulatory Demand regarding a systemic denial pattern identified for ${procedure}. 
 
-        doc.fontSize(13).text('PATTERN ANALYSIS:', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(11).text(`Our internal compliance audit has identified ${leads.length} separate instances where ${payer} has denied ${procedure} without providing actionable, granular clinical justification as mandated by CMS-0057-F.`, { lineGap: 3 });
-        doc.moveDown();
+Our clinical audit system has detected ${leads.length} concurrent denials for this procedure, all of which align with established Standards of Care and your own published Medical Policies. 
 
-        doc.text('AFFECTED CLAIMS SUMMARY:');
-        leads.forEach((l, i) => {
-            doc.fontSize(10).text(`${i+1}. Claim ID: AUTO-${l.id} | Patient Ref: ${l.username} | Value: $${parseFloat(l.estimated_value).toLocaleString()}`);
+CLAIMS INCLUDED IN THIS DEMAND:
+${leads.map(l => `- Claim #${l.id}: ${l.username} ($${l.estimated_value})`).join('\n')}
+
+REGULATORY NOTICE:
+Under CMS-0057-F, payers are prohibited from using automated denial algorithms that fail to account for patient-specific clinical data. The lack of granular justification for these ${leads.length} denials suggests a systemic compliance failure.
+
+We request an immediate systemic redetermination of all claims listed above within 72 hours. Failure to respond will result in a formal report to the CMS Regional Office regarding algorithmic bias and timing violations.
+
+Respectfully,
+Department of Revenue Integrity
+CMS Compliance Bridge - Omnibus Division
+        `.trim();
+
+        return res.status(200).json({ 
+            text: omnibusText,
+            count: leads.length,
+            totalValue
         });
 
-        doc.moveDown(2);
-        doc.fontSize(13).text('REGULATORY DEMAND:', { underline: true });
-        doc.moveDown(0.5);
-        doc.fontSize(11).text(`Failure to resolve this systemic denial pattern within 72 hours will result in an immediate escalation to the Centers for Medicare & Medicaid Services (CMS) and the relevant State Department of Insurance. We request a global redetermination for the claims listed above.`, { lineGap: 3 });
-
-        doc.end();
-
     } catch (error) {
-        console.error('[Omnibus Error]:', error.message);
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
     }
 }
