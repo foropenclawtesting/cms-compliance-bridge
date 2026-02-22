@@ -5,6 +5,7 @@ function App() {
   const [leads, setLeads] = useState([]);
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [editingLeadId, setEditingLeadId] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const fetchLeads = () => {
     fetch('/api/leads')
@@ -13,7 +14,14 @@ function App() {
       .catch(err => console.error("Error fetching leads:", err));
   };
 
+  useEffect(() => {
+    fetchLeads();
+    const interval = setInterval(fetchLeads, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const saveEdit = async () => {
+    setLoading(true);
     const res = await fetch('/api/save-draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -21,18 +29,19 @@ function App() {
     });
     if(res.ok) {
       alert("Draft saved successfully.");
+      setEditingAppeal(null);
+      setEditingLeadId(null);
       fetchLeads();
     }
+    setLoading(false);
   };
 
   const generateAppeal = async (lead) => {
-    // If an auto-draft or edit already exists, open it in the editor
     if (lead.drafted_appeal || lead.edited_appeal) {
       setEditingAppeal(lead.edited_appeal || lead.drafted_appeal);
       setEditingLeadId(lead.id);
       return;
     }
-    // ... rest of generate logic
 
     setLoading(true);
     try {
@@ -41,36 +50,52 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payerId: lead.insurance_type,
-          claimId: `MANUAL-${Math.floor(Math.random() * 10000)}`,
+          claimId: `MANUAL-${lead.id}`,
           reason: lead.pain_point,
           timestamp: new Date().toISOString()
         })
       });
       const data = await res.json();
-      setSelectedAppeal(data.appeal);
+      setEditingAppeal(data.appeal);
+      setEditingLeadId(lead.id);
     } catch (err) {
       console.error("Appeal generation failed", err);
     }
     setLoading(false);
   };
 
+  const pendingDrafts = leads.filter(l => l.status === 'Drafted');
+  
   const totalRecoverable = leads
     .filter(l => l.status !== 'Settled')
     .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
 
-  const totalSubmitted = leads
+  const totalSettled = leads
     .filter(l => l.status === 'Settled')
     .reduce((sum, l) => sum + (parseFloat(l.recovered_amount) || 0), 0);
+
+  const bulkTransmit = async () => {
+    if(!confirm(`Transmit all ${pendingDrafts.length} prepared appeals to their respective payers?`)) return;
+    setLoading(true);
+    for (const lead of pendingDrafts) {
+      await fetch('/api/submit-appeal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id, insuranceName: lead.insurance_type })
+      });
+    }
+    setLoading(false);
+    fetchLeads();
+    alert("Bulk transmission complete.");
+  };
 
   const calculateTimeLeft = (dueDate) => {
     if (!dueDate) return null;
     const difference = +new Date(dueDate) - +new Date();
     if (difference <= 0) return "EXPIRED";
-    
     const days = Math.floor(difference / (1000 * 60 * 60 * 24));
     const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
     const mins = Math.floor((difference / 1000 / 60) % 60);
-
     return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
   };
 
@@ -81,17 +106,29 @@ function App() {
         <h1>⚡ CMS Compliance Bridge</h1>
         <div className="stats-bar">
           <div className="stat">
-            <span className="label">Recoverable Revenue</span>
+            <span className="label">Potential Recovery</span>
             <span className="value">${totalRecoverable.toLocaleString()}</span>
           </div>
           <div className="stat">
-            <span className="label">Successfully Defended</span>
-            <span className="value success">${totalSubmitted.toLocaleString()}</span>
+            <span className="label">Drafts Pending</span>
+            <span className="value pending">{pendingDrafts.length}</span>
+          </div>
+          <div className="stat">
+            <span className="label">Recovered Revenue</span>
+            <span className="value success">${totalSettled.toLocaleString()}</span>
           </div>
         </div>
       </header>
 
       <main>
+        {pendingDrafts.length > 0 && (
+          <div className="bulk-actions">
+            <button className="btn-bulk" onClick={bulkTransmit} disabled={loading}>
+              {loading ? 'Transmitting Batch...' : `⚡ Transmit ${pendingDrafts.length} Pending Appeals`}
+            </button>
+          </div>
+        )}
+
         <section className="leads-list">
           <div className="section-header">
             <h2>Active Denial Leads</h2>
@@ -99,7 +136,7 @@ function App() {
           </div>
           <div className="grid">
             {leads.map((lead, i) => (
-              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''}`}>
+              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
                 <div className="card-header">
                   <div className="title-group">
                     <h3>{lead.user}</h3>
@@ -113,6 +150,7 @@ function App() {
                     {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
                     {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}
                     {lead.status === 'Submitted' && <span className="badge info">Submitted</span>}
+                    {lead.status === 'Settled' && <span className="badge success">Settled</span>}
                   </div>
                 </div>
                 <p><strong>Payer:</strong> {lead.insurance_type}</p>
@@ -120,33 +158,28 @@ function App() {
                 
                 <div className="card-actions">
                   <button 
-                    className={lead.drafted_appeal ? 'btn-view' : 'btn-generate'}
+                    className={(lead.drafted_appeal || lead.edited_appeal) ? 'btn-view' : 'btn-generate'}
                     onClick={() => generateAppeal(lead)} 
                     disabled={loading}
                   >
-                    {lead.drafted_appeal ? (lead.status === 'Submitted' ? 'View Submitted' : 'View Auto-Draft') : 'Draft CMS Appeal'}
+                    { (lead.drafted_appeal || lead.edited_appeal) ? (lead.status === 'Submitted' ? 'View Submitted' : 'Review & Edit') : 'Draft CMS Appeal'}
                   </button>
                   {lead.status === 'Drafted' && (
-                    <div className="submission-control">
-                      <button className="btn-submit" onClick={async () => {
-                        if(!confirm(`Transmit this appeal to the regulatory department for ${lead.insurance_type}?`)) return;
-                        
-                        const res = await fetch('/api/submit-appeal', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            leadId: lead.id, 
-                            appealText: lead.drafted_appeal,
-                            insuranceName: lead.insurance_type
-                          })
-                        });
-                        const data = await res.json();
-                        if(res.ok) {
-                          alert(`Appeal transmitted successfully to ${data.recipient} (${data.fax})`);
-                          fetchLeads();
-                        }
-                      }}>Transmit Appeal</button>
-                    </div>
+                    <button className="btn-submit" onClick={async () => {
+                      if(!confirm(`Transmit this appeal to the regulatory department for ${lead.insurance_type}?`)) return;
+                      setLoading(true);
+                      const res = await fetch('/api/submit-appeal', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ leadId: lead.id, insuranceName: lead.insurance_type })
+                      });
+                      const data = await res.json();
+                      if(res.ok) {
+                        alert(`Appeal transmitted successfully to ${data.recipient} (${data.fax})`);
+                        fetchLeads();
+                      }
+                      setLoading(false);
+                    }} disabled={loading}>Transmit Appeal</button>
                   )}
                 </div>
               </div>
@@ -159,7 +192,7 @@ function App() {
             <div className="modal-content">
               <div className="modal-header">
                 <h2>Review & Refine Appeal</h2>
-                <span className="lead-ref">Claim ID: {editingLeadId}</span>
+                <span className="lead-ref">Lead ID: {editingLeadId}</span>
               </div>
               
               <textarea 
@@ -170,7 +203,7 @@ function App() {
               />
 
               <div className="modal-actions">
-                <button className="btn-save" onClick={saveEdit}>Save Changes</button>
+                <button className="btn-save" onClick={saveEdit} disabled={loading}>Save Draft</button>
                 <button className="btn-download" onClick={async () => {
                   const res = await fetch('/api/generate-pdf', {
                     method: 'POST',
@@ -181,7 +214,7 @@ function App() {
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `Appeal_Refined_${editingLeadId}.pdf`;
+                  a.download = `Appeal_${editingLeadId}.pdf`;
                   a.click();
                 }}>Download PDF</button>
                 <button className="btn-secondary" onClick={() => {
