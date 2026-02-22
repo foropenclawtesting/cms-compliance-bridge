@@ -68,7 +68,14 @@ export default async function handler(req, res) {
                 submission_log: lead.submission_log,
                 success_probability: probability,
                 custom_strategy: customRule?.strategy || null,
-                clinical_evidence: match || null
+                clinical_evidence: match || null,
+                ehr_verified: !!lead.clinical_synthesis,
+                defense_audit: {
+                    has_clinical_research: !!match,
+                    has_payer_rule: !!customRule,
+                    has_ehr_data: !!lead.clinical_synthesis,
+                    has_carrier_intelligence: true
+                }
             };
         });
 

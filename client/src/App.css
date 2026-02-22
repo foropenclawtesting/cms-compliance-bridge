@@ -37,6 +37,7 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 .card.priority { border-left: 5px solid #e53e3e; }
 .card.settled { border-left: 5px solid #38a169; background: #f0fff4; }
 .card.refining { border-left: 5px solid #f6ad55; background: #fffaf0; }
+.card.ocr { border-left: 5px solid #805ad5; background: #faf5ff; }
 
 .card-header { display: flex; justify-content: space-between; margin-bottom: 1rem; }
 .title-group h3 { margin: 0; font-size: 1.1rem; }

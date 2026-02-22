@@ -50,7 +50,16 @@ async function monitor() {
                 });
             }
 
-            // 3. REVENUE VICTORY REPORT
+            // 3. VISION PARSING TRIGGER (Paper Rejections)
+            if (lead.status === 'OCR Required') {
+                notifications.push({
+                    type: 'VISION_OCR',
+                    leadId: lead.id,
+                    message: `Paper rejection received for ${lead.username}. Spawning Vision sub-agent to extract clinical reason.`
+                });
+            }
+
+            // 4. REVENUE VICTORY REPORT
             if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
                 notifications.push({
                     type: 'VICTORY',

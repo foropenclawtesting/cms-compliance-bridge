@@ -231,7 +231,7 @@ function App() {
             </div>
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => toggleLeadSelection(lead.id)}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${lead.status === 'OCR Required' ? 'ocr' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => toggleLeadSelection(lead.id)}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
