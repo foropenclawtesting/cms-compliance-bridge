@@ -3,10 +3,11 @@ const payerRouter = require('../services/payer-router');
 const axios = require('axios');
 const FormData = require('form-data');
 
+const pdfEngine = require('./services/pdf-engine');
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).end();
 
-    // The UI now sends leadId and insuranceName. We fetch the best version (Edited > Drafted)
     const { leadId, insuranceName } = req.body;
 
     if (!leadId) {
@@ -29,7 +30,10 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'No appeal text found to transmit.' });
         }
 
-        // 2. Resolve Recipient via Routing Engine
+        // 2. Wrap in Professional PDF Layout
+        const professionalHTML = pdfEngine.generateAppealHTML(lead, finalAppealText);
+
+        // 3. Resolve Recipient via Routing Engine
         const routing = payerRouter.lookup(insuranceName || lead.insurance_type);
         const targetFax = routing.fax;
 
@@ -42,8 +46,8 @@ export default async function handler(req, res) {
         if (process.env.PHAXIO_KEY && process.env.PHAXIO_SECRET) {
             const form = new FormData();
             form.append('to', targetFax);
-            form.append('string_data', finalAppealText);
-            form.append('string_data_type', 'text');
+            form.append('string_data', professionalHTML);
+            form.append('string_data_type', 'html'); // Upgraded to HTML for professional PDF rendering
 
             const response = await axios.post('https://api.phaxio.com/v2/faxes', form, {
                 headers: form.getHeaders(),
