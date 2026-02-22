@@ -9,12 +9,12 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 function App() {
   const [session, setSession] = useState(null);
   const [activeTab, setActiveTab] = useState('leads');
+  const [health, setHealth] = useState({ status: 'Checking...', checks: {} });
   const [leads, setLeads] = useState([]);
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
   const [velocity, setVelocity] = useState([]);
   const [rules, setRules] = useState([]);
   const [editingAppeal, setEditingAppeal] = useState(null);
-  const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -28,7 +28,15 @@ function App() {
 
   useEffect(() => {
     if (session) fetchData();
+    checkHealth();
   }, [session]);
+
+  const checkHealth = async () => {
+    try {
+        const res = await fetch('/api/health');
+        setHealth(await res.json());
+    } catch (e) { console.error("Health check failed"); }
+  };
 
   const fetchData = async () => {
     if (!session) return;
@@ -40,7 +48,7 @@ function App() {
             fetch('/api/rules', { headers }).then(res => res.json()),
             fetch('/api/velocity', { headers }).then(res => res.json())
         ]);
-        setLeads(l || []);
+        setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
         setRules(r || []);
         setVelocity(v || []);
@@ -53,15 +61,6 @@ function App() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) alert(error.message);
     setLoading(false);
-  };
-
-  const calculateTimeLeft = (dueDate) => {
-    if (!dueDate) return null;
-    const diff = +new Date(dueDate) - +new Date();
-    if (diff <= 0) return "EXPIRED";
-    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-    return d > 0 ? `${d}d ${h}h` : `${h}h remaining`;
   };
 
   if (!session) {
@@ -81,16 +80,26 @@ function App() {
 
   return (
     <div className="dashboard">
+      {health.checks.schema !== 'Synchronized' && (
+        <div className="setup-banner">
+            <span className="icon">⚠️</span>
+            <div className="banner-content">
+                <strong>Database Setup Required:</strong> Your Supabase schema is missing required columns (estimated_value, due_at, etc.). 
+                <button className="btn-copy-sql" onClick={() => alert("Please copy the SQL from your terminal and run it in the Supabase SQL Editor.")}>View Migration SQL</button>
+            </div>
+        </div>
+      )}
+
       <header>
         <div className="header-top">
             <div className="system-status">
-                <span className="status-dot green"></span> FHIR: Epic Sandbox (Active)
-                <span className="status-dot green"></span> GATEWAY: Phaxio (Online)
+                <span className={`status-dot ${health.checks.database === 'Connected' ? 'green' : 'red'}`}></span> DB: {health.checks.database}
+                <span className="status-dot green"></span> FHIR: Active
             </div>
             <div className="nav-tabs">
-                <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Active Denials</button>
-                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue Strategy</button>
-                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Rules</button>
+                <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
+                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue</button>
+                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Logic</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
@@ -98,22 +107,21 @@ function App() {
         <div className="hero-stats">
             <div className="hero-main">
                 <h1>⚡ CMS Compliance Bridge</h1>
-                <p>HIPAA-Compliant Revenue Recovery Operations</p>
+                <p>HIPAA-Compliant Revenue Recovery Engine</p>
             </div>
             <div className="velocity-widget">
-                <span className="widget-label">Recovery Velocity (7d)</span>
+                <span className="widget-label">Recovery Speed</span>
                 <div className="mini-chart">
                     {velocity.map((v, i) => (
-                        <div key={i} className="bar" style={{height: `${Math.min(100, (v.amount/10000)*100)}%`}} title={`${v.date}: $${v.amount}`}></div>
+                        <div key={i} className="bar" style={{height: `${Math.min(100, (v.amount/10000)*100)}%`}}></div>
                     ))}
                 </div>
             </div>
         </div>
 
         <div className="stats-bar">
-          <div className="stat"><span className="label">Potential Recovery</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Total Potential</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
           <div className="stat"><span className="label">Forecasted Win</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
-          <div className="stat"><span className="label">Recovered Amount</span><span className="value success">${(leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0)).toLocaleString()}</span></div>
           <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
       </header>
@@ -123,46 +131,43 @@ function App() {
           <section className="leads-list">
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''}`}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
-                      {lead.due_at && <span className="deadline">⌛ {calculateTimeLeft(lead.due_at)}</span>}
+                      <span className="badge info">{lead.status}</span>
                     </div>
                     <div className="header-badges">
-                      <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>
-                      <span className={`badge ${lead.status === 'Settled' ? 'success' : (lead.status === 'Healing Required' ? 'error' : 'info')}`}>{lead.status}</span>
+                      <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
                     </div>
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
-                  {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Self-Healing Active: Correcting fax routing...</div>}
-                  <div className="card-actions">
-                    <button className="btn-view" onClick={() => { setEditingAppeal(lead.edited_appeal || lead.drafted_appeal); setEditingLeadId(lead.id); }}>Review Package</button>
-                  </div>
+                  <button className="btn-view" onClick={() => setEditingAppeal(lead.drafted_appeal)}>Review Clinical Package</button>
                 </div>
               ))}
+              {leads.length === 0 && <p className="no-data">No denials detected. Run the local Scout to populate.</p>}
             </div>
           </section>
         )}
 
         {activeTab === 'analytics' && (
           <section className="analytics-section">
-            <h2>Systemic Denial Trends</h2>
+            <h2>Systemic Denial Patterns</h2>
             <div className="trends-grid">
               {analytics.trends.map((t, i) => (
                 <div key={i} className="trend-card">
-                  <span className="trend-badge">⚠️ SYSTEMIC PATTERN</span>
+                  <span className="trend-badge">PATTERN</span>
                   <h4>{t.procedure}</h4>
-                  <p>{t.payer} denial cluster detected ({t.count}x)</p>
-                  <strong>Total Stake: ${t.value.toLocaleString()}</strong>
+                  <p>{t.payer} denied this {t.count}x.</p>
+                  <strong>Stake: ${t.value.toLocaleString()}</strong>
                 </div>
               ))}
             </div>
-            <h2 style={{marginTop: '3rem'}}>Payer Performance Benchmarks</h2>
+            <h2 style={{marginTop: '3rem'}}>Payer Benchmarks</h2>
             <table className="analytics-table">
-                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Recovery Action</th></tr></thead>
+                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th></tr></thead>
                 <tbody>{analytics.payers.map((p, i) => (
-                    <tr key={i}><td><strong>{p.name}</strong></td><td>{p.winRate}%</td><td>{p.avgTatDays}d</td><td className="success"><strong>{p.bestStrategy.replace(/_/g, ' ')}</strong></td></tr>
+                    <tr key={i}><td><strong>{p.name}</strong></td><td>{p.winRate}%</td><td>{p.avgTatDays}d</td></tr>
                 ))}</tbody>
             </table>
           </section>
@@ -171,14 +176,12 @@ function App() {
         {activeTab === 'rules' && (
           <section className="rules-section">
             <h2>Payer Logic Configuration</h2>
-            <div className="rules-container">
-                <table className="rules-table">
-                    <thead><tr><th>Payer</th><th>Reason Code</th><th>Clinical Strategy</th></tr></thead>
-                    <tbody>{rules.map((r, i) => (
-                        <tr key={i}><td>{r.payer_name}</td><td><code>{r.reason_code}</code></td><td>{r.strategy.replace(/_/g, ' ')}</td></tr>
-                    ))}</tbody>
-                </table>
-            </div>
+            <table className="rules-table">
+                <thead><tr><th>Payer</th><th>Reason</th><th>Strategy</th></tr></thead>
+                <tbody>{rules.map((r, i) => (
+                    <tr key={i}><td>{r.payer_name}</td><td><code>{r.reason_code}</code></td><td>{r.strategy.replace(/_/g, ' ')}</td></tr>
+                ))}</tbody>
+            </table>
           </section>
         )}
       </main>
@@ -186,7 +189,7 @@ function App() {
       {editingAppeal && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <div className="modal-header"><h2>Refine Appeal Package</h2><span>ID: {editingLeadId}</span></div>
+            <div className="modal-header"><h2>Appeal Package Review</h2></div>
             <textarea className="appeal-editor" value={editingAppeal} readOnly rows={20} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingAppeal(null)}>Close</button>
