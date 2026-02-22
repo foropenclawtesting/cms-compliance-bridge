@@ -366,6 +366,9 @@ function App() {
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
               <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>Generate P2P Brief</button>
+              {editingLead.status === 'Escalated' && (
+                <button className="btn-escalate" style={{width: 'auto', padding: '0.75rem 1.5rem'}} onClick={() => escalateToCMS(editingLead.id)}>File CMS Complaint</button>
+              )}
               <button className="btn-primary" disabled={loading} onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
             </div>
           </div>
@@ -379,6 +382,17 @@ function App() {
             <pre className="appeal-editor" style={{ background: '#f0f4f8', color: '#2d3748' }}>{p2pBrief}</pre>
             <div className="modal-actions">
               <button className="btn-primary" onClick={() => setP2pBrief(null)}>Close Briefing</button>
+            </div>
+          </div>
+        </section>
+      )}
+      {complaintView && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <div className="modal-header"><h2>CMS Regulatory Complaint</h2></div>
+            <pre className="appeal-editor" style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' }}>{complaintView}</pre>
+            <div className="modal-actions">
+              <button className="btn-primary" style={{ background: '#c53030' }} onClick={() => setComplaintView(null)}>Close & Log Escalation</button>
             </div>
           </div>
         </section>
