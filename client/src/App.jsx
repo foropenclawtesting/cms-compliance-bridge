@@ -9,35 +9,18 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 function App() {
   const [session, setSession] = useState(null);
   const [activeTab, setActiveTab] = useState('leads');
-  const [health, setHealth] = useState({ status: 'Checking...', checks: {} });
+  const [health, setHealth] = useState({ status: 'Checking...', checks: { database: '...', fhir_gateway: '...', fax_gateway: '...', schema: '...' } });
   const [leads, setLeads] = useState([]);
-  const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+  const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
   const [velocity, setVelocity] = useState([]);
   const [directory, setDirectory] = useState([]);
   const [complianceLog, setComplianceLog] = useState([]);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [p2pBrief, setP2pBrief] = useState(null);
+  const [complaintView, setComplaintView] = useState(null);
   const [selectedLeads, setSelectedLeads] = useState([]);
-
-  const batchSubmit = async () => {
-    if (!confirm(`Submit ${selectedLeads.length} appeals via Gateway?`)) return;
-    setLoading(true);
-    const res = await fetch('/api/batch-submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ leadIds: selectedLeads })
-    });
-    const data = await res.json();
-    alert(`Batch Complete: ${data.successful.length} Sent, ${data.failed.length} Failed.`);
-    setSelectedLeads([]);
-    fetchData();
-    setLoading(false);
-  };
-
-  const toggleLeadSelection = (id) => {
-    setSelectedLeads(prev => prev.includes(id) ? prev.filter(l => l !== id) : [...prev, id]);
-  };
+  const [loading, setLoading] = useState(false);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,35 +31,13 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const [rules, setRules] = useState([]);
-  const [newRule, setNewRule] = useState({ payer_name: '', reason_code: '', strategy: '' });
-
   useEffect(() => {
     if (session) {
         fetchData();
-        fetchRules();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
   }, [session]);
-
-  const fetchRules = async () => {
-    const res = await fetch('/api/rules', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
-    const data = await res.json();
-    setRules(Array.isArray(data) ? data : []);
-  };
-
-  const saveRule = async () => {
-    setLoading(true);
-    await fetch('/api/rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify(newRule)
-    });
-    setNewRule({ payer_name: '', reason_code: '', strategy: '' });
-    fetchRules();
-    setLoading(false);
-  };
 
   const fetchData = async () => {
     if (!session) return;
@@ -91,7 +52,7 @@ function App() {
             fetch('/api/compliance-log', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
-        setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+        setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
         setVelocity(v || []);
         setDirectory(d || []);
         setHealth(h);
@@ -127,6 +88,55 @@ function App() {
     setLoading(false);
   };
 
+  const batchSubmit = async () => {
+    if (!confirm(`Submit ${selectedLeads.length} appeals?`)) return;
+    setLoading(true);
+    const res = await fetch('/api/batch-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadIds: selectedLeads })
+    });
+    const data = await res.json();
+    alert(`Batch Complete: ${data.successful?.length || 0} Sent.`);
+    setSelectedLeads([]);
+    fetchData();
+    setLoading(false);
+  };
+
+  const transmitOmnibus = async (trend) => {
+    if (!confirm(`Transmit Systemic Omnibus Appeal for ${trend.count} denials?`)) return;
+    setLoading(true);
+    const genRes = await fetch('/api/generate-omnibus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure })
+    });
+    const data = await genRes.json();
+    const subRes = await fetch('/api/submit-omnibus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure, appealText: data.text })
+    });
+    if (subRes.ok) {
+        alert('Omnibus Escalation Transmitted to Payer Legal.');
+        fetchData();
+    }
+    setLoading(false);
+  };
+
+  const escalateToCMS = async (leadId) => {
+    setLoading(true);
+    const res = await fetch('/api/escalate-to-cms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId })
+    });
+    const data = await res.json();
+    setComplaintView(data.complaintText);
+    setLoading(false);
+    fetchData();
+  };
+
   const generateP2P = async (leadId) => {
     setLoading(true);
     const res = await fetch('/api/generate-p2p-brief', {
@@ -140,23 +150,22 @@ function App() {
   };
 
   const requestP2P = async (leadId) => {
-    const availability = prompt("Enter Physician Availability (e.g. Mon/Wed 8am-9am):", "Mon-Fri 8am-10am EST");
+    const availability = prompt("Enter Availability:", "Mon-Fri 8am-10am EST");
     if (!availability) return;
-    
     setLoading(true);
     const res = await fetch('/api/request-p2p', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ leadId, availability })
     });
-    if (res.ok) {
-        alert('P2P Scheduling Request Transmitted to Payer.');
-        setP2pBrief(null);
-        setEditingLead(null);
-        fetchData();
-    }
+    if (res.ok) alert('P2P Request Transmitted.');
+    setP2pBrief(null);
+    setEditingLead(null);
+    fetchData();
     setLoading(false);
   };
+
+  const testConnection = async (target) => {
     setLoading(true);
     const res = await fetch('/api/test-connection', {
         method: 'POST',
@@ -164,7 +173,7 @@ function App() {
         body: JSON.stringify({ target })
     });
     const data = await res.json();
-    alert(`${target} Connection: ${data.status}\n${data.message || data.error}`);
+    alert(`${target}: ${data.status}\n${data.message || data.error}`);
     setLoading(false);
   };
 
@@ -207,7 +216,6 @@ function App() {
             <div className="nav-tabs">
                 <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
                 <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue</button>
-                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Rules</button>
                 <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
                 <button className={activeTab === 'system' ? 'active' : ''} onClick={() => setActiveTab('system')}>System</button>
             </div>
@@ -248,7 +256,7 @@ function App() {
             </div>
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${lead.status === 'OCR Required' ? 'ocr' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => toggleLeadSelection(lead.id)}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''} ${lead.status === 'Refinement Required' ? 'refining' : ''} ${lead.status === 'OCR Required' ? 'ocr' : ''} ${selectedLeads.includes(lead.id) ? 'selected' : ''}`} onClick={() => setSelectedLeads(prev => prev.includes(lead.id) ? prev.filter(l => l !== lead.id) : [...prev, lead.id])}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
@@ -263,48 +271,44 @@ function App() {
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
                   {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing Active...</div>}
-                  <button className="btn-view" onClick={() => {
+                  <button className="btn-view" onClick={(e) => {
+                    e.stopPropagation();
                     setEditingLead(lead);
                     setEditedText(lead.edited_appeal || lead.drafted_appeal);
                   }}>Review Clinical Package</button>
                 </div>
               ))}
-              {leads.length === 0 && <p className="no-data">No denials detected. Run the local Scout to populate.</p>}
             </div>
           </section>
         )}
 
         {activeTab === 'analytics' && (
           <section className="analytics-section">
-            <div className="analytics-header">
-                <h2>Payer Performance Command</h2>
-                <p>Strategize recovery based on real-world Turnaround Time (TAT) and Win Rates.</p>
+            <h2>Systemic Denial Patterns</h2>
+            <div className="trends-grid">
+              {analytics.trends.map((t, i) => (
+                <div key={i} className="trend-card">
+                  <span className="trend-badge">SYSTEMIC PATTERN</span>
+                  <h4>{t.procedure}</h4>
+                  <p>{t.payer} denied this {t.count}x.</p>
+                  <div style={{marginBottom: '1rem'}}>
+                    <strong>Stake: ${t.value.toLocaleString()}</strong>
+                  </div>
+                  <button className="btn-escalate" style={{width: '100%'}} onClick={() => transmitOmnibus(t)}>Transmit Omnibus Demand</button>
+                </div>
+              ))}
             </div>
             
+            <h2 style={{marginTop: '3rem'}}>Payer Performance</h2>
             <div className="performance-grid">
               {analytics.payers.map((p, i) => (
                 <div key={i} className={`perf-card ${p.riskScore > 50 ? 'danger' : ''}`}>
-                    <div className="perf-top">
-                        <strong>{p.name}</strong>
-                        {p.riskScore > 50 && <span className="risk-tag">HIGH RISK</span>}
-                    </div>
+                    <div className="perf-top"><strong>{p.name}</strong></div>
                     <div className="perf-metrics">
                         <div className="metric"><span className="label">Win Rate</span><span className="val">{p.winRate}%</span></div>
                         <div className="metric"><span className="label">Avg. TAT</span><span className="val">{p.avgTatDays}d</span></div>
                     </div>
                     <div className="risk-meter"><div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div></div>
-                </div>
-              ))}
-            </div>
-
-            <h2 style={{marginTop: '3rem'}}>Systemic Denial Patterns</h2>
-            <div className="trends-grid">
-              {analytics.trends.map((t, i) => (
-                <div key={i} className="trend-card">
-                  <span className="trend-badge">PATTERN</span>
-                  <h4>{t.procedure}</h4>
-                  <p>{t.payer} denied this {t.count}x.</p>
-                  <strong>Stake: ${t.value.toLocaleString()}</strong>
                 </div>
               ))}
             </div>
@@ -315,58 +319,21 @@ function App() {
           <section className="rules-section">
             <h2>CMS-0057-F Audit Log</h2>
             <table className="rules-table">
-                <thead><tr><th>Patient/Claim</th><th>Payer</th><th>Submitted</th><th>Deadline</th><th>Status</th></tr></thead>
+                <thead><tr><th>Patient</th><th>Payer</th><th>Submitted</th><th>Status</th></tr></thead>
                 <tbody>{complianceLog.map((log, i) => (
-                    <tr key={i}>
-                        <td>{log.username}</td>
-                        <td><strong>{log.insurance_type}</strong></td>
-                        <td>{new Date(log.submitted_at).toLocaleDateString()}</td>
-                        <td>{log.due_at ? new Date(log.due_at).toLocaleDateString() : 'N/A'}</td>
-                        <td><span className="badge info">{log.status}</span></td>
-                    </tr>
+                    <tr key={i}><td>{log.username}</td><td><strong>{log.insurance_type}</strong></td><td>{new Date(log.submitted_at).toLocaleDateString()}</td><td><span className="badge info">{log.status}</span></td></tr>
                 ))}</tbody>
             </table>
-            <button className="btn-copy-sql" style={{marginTop: '1rem'}} onClick={() => alert('Audit CSV Exported to HIPAA-Safe storage.')}>Export Audit Report</button>
           </section>
         )}
 
         {activeTab === 'system' && (
           <section className="rules-section">
-            <h2>System Connectivity Health</h2>
+            <h2>System Connectivity</h2>
             <div className="performance-grid">
-                <div className={`perf-card ${health.checks.database === 'Connected' ? '' : 'danger'}`}>
-                    <strong>Database</strong>
-                    <div className="val">{health.checks.database}</div>
-                    <p className="form-note">Supabase Cloud Persistence</p>
-                </div>
-                <div className={`perf-card ${health.checks.fhir_gateway.includes('Active') ? '' : 'danger'}`}>
-                    <strong>FHIR R4 Tunnel</strong>
-                    <div className="val">{health.checks.fhir_gateway}</div>
-                    <p className="form-note">Epic/Cerner Interoperability</p>
-                </div>
-                <div className={`perf-card ${health.checks.fax_gateway === 'Live' ? '' : 'danger'}`}>
-                    <strong>Fax Gateway</strong>
-                    <div className="val">{health.checks.fax_gateway}</div>
-                    <p className="form-note">Phaxio Transmission Service</p>
-                </div>
-                <div className={`perf-card ${health.checks.schema === 'Synchronized' ? '' : 'danger'}`}>
-                    <strong>Data Schema</strong>
-                    <div className="val">{health.checks.schema}</div>
-                    <p className="form-note">Regulatory Field Sync</p>
-                </div>
-            </div>
-            
-            <div style={{marginTop: '3rem'}}>
-                <h3>Environment Configuration</h3>
-                <p className="form-note">Masked values for HIPAA-safe security review.</p>
-                <table className="rules-table">
-                    <thead><tr><th>Key</th><th>Status</th></tr></thead>
-                    <tbody>
-                        <tr><td>SUPABASE_URL</td><td><span className="badge success">CONFIGURED</span></td></tr>
-                        <tr><td>PHAXIO_KEY</td><td><span className="badge info">{health.checks.fax_gateway === 'Live' ? 'DETECTED' : 'MISSING'}</span></td></tr>
-                        <tr><td>FHIR_BASE_URL</td><td><code>{health.checks.fhir_gateway.includes('Active') ? 'CONNECTED' : 'DEFAULT_SANDBOX'}</code></td></tr>
-                    </tbody>
-                </table>
+                <div className={`perf-card ${health.checks.database === 'Connected' ? '' : 'danger'}`}><strong>Database</strong><div className="val">{health.checks.database}</div></div>
+                <div className={`perf-card ${health.checks.fhir_gateway.includes('Active') ? '' : 'danger'}`}><strong>FHIR Tunnel</strong><div className="val">{health.checks.fhir_gateway}</div></div>
+                <div className={`perf-card ${health.checks.fax_gateway === 'Live' ? '' : 'danger'}`}><strong>Fax Gateway</strong><div className="val">{health.checks.fax_gateway}</div></div>
             </div>
           </section>
         )}
@@ -375,17 +342,13 @@ function App() {
       {editingLead && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <div className="modal-header">
-                <h2>Clinical Review: {editingLead.user}</h2>
-                <span className="badge info">{editingLead.insurance_type}</span>
-            </div>
+            <div className="modal-header"><h2>Clinical Review: {editingLead.user}</h2></div>
             <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={20} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
-              <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>Generate P2P Brief</button>
-              <button className="btn-secondary" onClick={() => window.open(`/api/export-audit?leadId=${editingLead.id}`, '_blank')}>Download Audit Package</button>
+              <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>P2P Brief</button>
               {editingLead.status === 'Escalated' && (
-                <button className="btn-escalate" style={{width: 'auto', padding: '0.75rem 1.5rem'}} onClick={() => escalateToCMS(editingLead.id)}>File CMS Complaint</button>
+                <button className="btn-escalate" onClick={() => escalateToCMS(editingLead.id)}>File CMS Complaint</button>
               )}
               <button className="btn-primary" disabled={loading} onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
             </div>
@@ -405,13 +368,14 @@ function App() {
           </div>
         </section>
       )}
+
       {complaintView && (
         <section className="appeal-preview">
           <div className="modal-content">
             <div className="modal-header"><h2>CMS Regulatory Complaint</h2></div>
-            <pre className="appeal-editor" style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' }}>{complaintView}</pre>
+            <pre className="appeal-editor" style={{ background: '#fff5f5', color: '#c53030' }}>{complaintView}</pre>
             <div className="modal-actions">
-              <button className="btn-primary" style={{ background: '#c53030' }} onClick={() => setComplaintView(null)}>Close & Log Escalation</button>
+              <button className="btn-primary" style={{ background: '#c53030' }} onClick={() => setComplaintView(null)}>Close</button>
             </div>
           </div>
         </section>
