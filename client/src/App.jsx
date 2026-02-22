@@ -17,7 +17,19 @@ function App() {
   const [complianceLog, setComplianceLog] = useState([]);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [p2pBrief, setP2pBrief] = useState(null);
+
+  const generateP2P = async (leadId) => {
+    setLoading(true);
+    const res = await fetch('/api/generate-p2p-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId })
+    });
+    const data = await res.json();
+    setP2pBrief(data.briefing);
+    setLoading(false);
+  };
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -251,7 +263,20 @@ function App() {
             <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={20} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
+              <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>Generate P2P Brief</button>
               <button className="btn-primary" disabled={loading} onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {p2pBrief && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <div className="modal-header"><h2>Physician P2P Briefing</h2></div>
+            <pre className="appeal-editor" style={{ background: '#f0f4f8', color: '#2d3748' }}>{p2pBrief}</pre>
+            <div className="modal-actions">
+              <button className="btn-primary" onClick={() => setP2pBrief(null)}>Close Briefing</button>
             </div>
           </div>
         </section>
