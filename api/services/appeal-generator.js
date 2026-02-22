@@ -13,9 +13,9 @@ exports.draft = (details) => {
     let evidenceSection = "";
     if (clinicalSynthesis) {
         evidenceSection = `
-CLINICAL NECESSITY JUSTIFICATION:
+CLINICAL NECESSITY JUSTIFICATION & POLICY ADHERENCE:
 ${clinicalSynthesis}
-(Ref: ${clinicalEvidence?.title || 'EviDex Intel Engine'})`;
+(Ref: Clinical Peer Review & Payer Medical Policy Analysis)`;
     } else if (clinicalEvidence) {
         evidenceSection = `
 CLINICAL EVIDENCE SUPPORT:
