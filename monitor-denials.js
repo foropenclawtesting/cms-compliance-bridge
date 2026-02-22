@@ -26,49 +26,29 @@ async function monitor() {
         if (error) throw error;
 
         const notifications = [];
-        const patterns = {};
 
         leads.forEach(lead => {
-            // 1. SYSTEMIC PATTERN DETECTION (Autonomous Escalation)
-            const patternKey = `${lead.insurance_type}|${lead.title}`;
-            if (!patterns[patternKey]) patterns[patternKey] = { payer: lead.insurance_type, procedure: lead.title, count: 0, value: 0, ids: [] };
-            patterns[patternKey].count++;
-            patterns[patternKey].value += parseFloat(lead.estimated_value) || 0;
-            patterns[patternKey].ids.push(lead.id);
-
-            // 2. REGULATORY DEADLINE ENFORCEMENT (Notice of Violation)
-            if (lead.due_at && new Date(lead.due_at) < new Date() && lead.status === 'Submitted') {
+            // 1. AUTONOMOUS P2P OPPORTUNITY (High Value > $10k)
+            if (parseFloat(lead.estimated_value) >= 10000 && lead.status === 'Submitted') {
                 notifications.push({
-                    type: 'REGULATORY_VIOLATION',
+                    type: 'P2P_OPPORTUNITY',
                     leadId: lead.id,
-                    payer: lead.insurance_type,
-                    message: `Deadline VIOLATION detected for ${lead.username}. Deadline was ${lead.due_at}. Triggering Notice of Violation.`
+                    patient: lead.username,
+                    amount: lead.estimated_value,
+                    message: `HIGH-VALUE P2P OPPORTUNITY: $${parseFloat(lead.estimated_value).toLocaleString()} claim for ${lead.username} is eligible for Peer-to-Peer. Pre-briefing generated.`
                 });
             }
 
-            // 3. INDIVIDUAL STATUS TRIGGERS
-            if (lead.status === 'Healing Required') {
-                notifications.push({ type: 'AGENTIC_HEAL', payer: lead.insurance_type, leadId: lead.id, message: `Fax failure for ${lead.insurance_type}.` });
+            // 2. DEADLINE VIOLATION DETECTION
+            if (lead.due_at && new Date(lead.due_at) < new Date() && lead.status === 'Submitted') {
+                notifications.push({ type: 'REGULATORY_VIOLATION', leadId: lead.id, payer: lead.insurance_type });
             }
-            if (lead.status === 'OCR Required') {
-                notifications.push({ type: 'VISION_OCR', leadId: lead.id, message: `Paper rejection received for ${lead.username}.` });
-            }
+
+            // 3. AGENTIC HEALING & VISION TRIGGERS
+            if (lead.status === 'Healing Required') notifications.push({ type: 'AGENTIC_HEAL', leadId: lead.id, payer: lead.insurance_type });
+            if (lead.status === 'OCR Required') notifications.push({ type: 'VISION_OCR', leadId: lead.id });
             if (lead.status === 'New' && (!lead.defense_audit || lead.defense_audit.score < 70)) {
-                notifications.push({ type: 'SELF_REFINE', leadId: lead.id, message: `Low defense score for ${lead.username}.` });
-            }
-        });
-
-        // 3. TRIGGER OMNIBUS ESCALATION FOR HIGH-STAKES PATTERNS (>$100k)
-        Object.values(patterns).forEach(p => {
-            if (p.value >= 100000 && p.count >= 5) {
-                notifications.push({
-                    type: 'OMNIBUS_AUTO_TRANSMIT',
-                    payer: p.payer,
-                    procedure: p.procedure,
-                    value: p.value,
-                    count: p.count,
-                    message: `SYSTEMIC LEAK DETECTED: $${p.value.toLocaleString()} in ${p.payer} denials for ${p.procedure}. Triggering autonomous Omnibus demand.`
-                });
+                notifications.push({ type: 'SELF_REFINE', leadId: lead.id });
             }
         });
 
