@@ -17,10 +17,12 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 .hero-main h1 { margin: 0; font-size: 2rem; color: #2d3748; }
 .hero-main p { margin: 0.25rem 0 0 0; color: #718096; }
 
-.velocity-widget { background: white; padding: 1rem; border-radius: 12px; border: 1px solid #e2e8f0; width: 200px; }
-.widget-label { font-size: 0.6rem; text-transform: uppercase; color: #718096; font-weight: 800; display: block; margin-bottom: 0.5rem; }
-.mini-chart { height: 40px; display: flex; align-items: flex-end; gap: 4px; }
-.mini-chart .bar { flex: 1; background: #3182ce; border-radius: 2px 2px 0 0; min-height: 2px; }
+.velocity-widget { background: white; padding: 1rem; border-radius: 12px; border: 1px solid #e2e8f0; width: 220px; transition: transform 0.2s ease; }
+.velocity-widget:hover { transform: scale(1.02); }
+.mini-chart { height: 40px; display: flex; align-items: flex-end; gap: 4px; position: relative; }
+.chart-grid { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-bottom: 1px dashed #edf2f7; z-index: 0; }
+.mini-chart .bar { flex: 1; background: #3182ce; border-radius: 2px 2px 0 0; min-height: 2px; position: relative; z-index: 1; }
+.mini-chart .bar.forecast { background: #ebf8ff; border: 1px dashed #3182ce; opacity: 0.6; }
 
 .nav-tabs { display: flex; gap: 0.25rem; background: #edf2f7; padding: 0.25rem; border-radius: 8px; }
 .nav-tabs button { background: none; color: #718096; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; width: auto; border: none; cursor: pointer; }

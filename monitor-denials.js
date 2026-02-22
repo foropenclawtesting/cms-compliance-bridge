@@ -21,70 +21,43 @@ async function monitor() {
         const { data: leads, error } = await supabase
             .from('healthcare_denial_leads')
             .select('*')
-            .in('status', ['Healing Required', 'Settled']);
+            .not('status', 'eq', 'Settled');
 
         if (error) throw error;
 
         const notifications = [];
+        const patterns = {};
 
         leads.forEach(lead => {
-            // 1. AGENTIC HEALING TRIGGER
+            // 1. SYSTEMIC PATTERN DETECTION (Autonomous Escalation)
+            const patternKey = `${lead.insurance_type}|${lead.title}`;
+            if (!patterns[patternKey]) patterns[patternKey] = { payer: lead.insurance_type, procedure: lead.title, count: 0, value: 0, ids: [] };
+            patterns[patternKey].count++;
+            patterns[patternKey].value += parseFloat(lead.estimated_value) || 0;
+            patterns[patternKey].ids.push(lead.id);
+
+            // 2. INDIVIDUAL STATUS TRIGGERS
             if (lead.status === 'Healing Required') {
-                notifications.push({
-                    type: 'AGENTIC_HEAL',
-                    payer: lead.insurance_type,
-                    leadId: lead.id,
-                    message: `Fax transmission failed for ${lead.insurance_type}. Initiation Agentic Healing loop.`
-                });
+                notifications.push({ type: 'AGENTIC_HEAL', payer: lead.insurance_type, leadId: lead.id, message: `Fax failure for ${lead.insurance_type}.` });
             }
-
-            // 2. RECURSIVE REFINEMENT TRIGGER
-            if (lead.status === 'Refinement Required') {
-                notifications.push({
-                    type: 'RECURSIVE_RESEARCH',
-                    payer: lead.insurance_type,
-                    procedure: lead.title,
-                    leadId: lead.id,
-                    rejection: lead.submission_log,
-                    message: `Payer rejection detected for ${lead.username}. Initiating Recursive Research Loop.`
-                });
-            }
-
-            // 3. VISION PARSING TRIGGER (Paper Rejections)
             if (lead.status === 'OCR Required') {
-                notifications.push({
-                    type: 'VISION_OCR',
-                    leadId: lead.id,
-                    message: `Paper rejection received for ${lead.username}. Spawning Vision sub-agent to extract clinical reason.`
-                });
+                notifications.push({ type: 'VISION_OCR', leadId: lead.id, message: `Paper rejection received for ${lead.username}.` });
             }
-
-            // 4. AUTONOMOUS REFINEMENT TRIGGER
-            if (lead.status === 'New' || lead.status === 'Drafted') {
-                // If defense score is low, trigger autonomous fix
-                const score = lead.defense_audit ? (
-                    (lead.defense_audit.has_clinical_research ? 30 : 0) +
-                    (lead.defense_audit.has_ehr_data ? 40 : 0) +
-                    (lead.defense_audit.has_payer_rule ? 30 : 0)
-                ) : 0;
-
-                if (score < 70) {
-                    notifications.push({
-                        type: 'SELF_REFINE',
-                        leadId: lead.id,
-                        message: `Low defense score (${score}%) for ${lead.username}. Triggering Clinical Self-Refinement loop.`
-                    });
-                }
+            if (lead.status === 'New' && (!lead.defense_audit || lead.defense_audit.score < 70)) {
+                notifications.push({ type: 'SELF_REFINE', leadId: lead.id, message: `Low defense score for ${lead.username}.` });
             }
+        });
 
-            // 5. REVENUE VICTORY REPORT
-            if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
+        // 3. TRIGGER OMNIBUS ESCALATION FOR HIGH-STAKES PATTERNS (>$100k)
+        Object.values(patterns).forEach(p => {
+            if (p.value >= 100000 && p.count >= 5) {
                 notifications.push({
-                    type: 'VICTORY',
-                    patient: lead.username,
-                    amount: parseFloat(lead.recovered_amount),
-                    payer: lead.insurance_type,
-                    message: `Victory! Recovered $${parseFloat(lead.recovered_amount).toLocaleString()} from ${lead.insurance_type} for ${lead.username}.`
+                    type: 'OMNIBUS_AUTO_TRANSMIT',
+                    payer: p.payer,
+                    procedure: p.procedure,
+                    value: p.value,
+                    count: p.count,
+                    message: `SYSTEMIC LEAK DETECTED: $${p.value.toLocaleString()} in ${p.payer} denials for ${p.procedure}. Triggering autonomous Omnibus demand.`
                 });
             }
         });
