@@ -13,74 +13,55 @@ export default async function handler(req, res) {
         if (error) throw error;
 
         const payerStats = {};
-        const strategyStats = {};
         const patterns = {};
 
         leads.forEach(lead => {
             const payer = lead.insurance_type || "Unknown";
-            const procedure = lead.title || "Unknown Procedure";
             const strategy = lead.strategy || "STANDARD";
+            const outcome = lead.final_outcome;
 
-            // 1. Payer Benchmarking
             if (!payerStats[payer]) {
-                payerStats[payer] = { name: payer, count: 0, totalValue: 0, wins: 0, processed: 0, totalTatMs: 0 };
+                payerStats[payer] = { 
+                    name: payer, count: 0, wins: 0, processed: 0, 
+                    strategies: {}, bestStrategy: 'STANDARD_CMS_COMPLIANCE' 
+                };
             }
-            payerStats[payer].count++;
-            payerStats[payer].totalValue += parseFloat(lead.estimated_value) || 0;
-            
-            // 2. Strategy Effectiveness
-            if (!strategyStats[strategy]) {
-                strategyStats[strategy] = { name: strategy, attempts: 0, wins: 0 };
-            }
+            const p = payerStats[payer];
+            p.count++;
 
             if (lead.status === 'Settled') {
-                payerStats[payer].processed++;
-                strategyStats[strategy].attempts++;
+                p.processed++;
+                if (!p.strategies[strategy]) p.strategies[strategy] = { attempts: 0, wins: 0 };
+                p.strategies[strategy].attempts++;
                 
-                if (lead.final_outcome === 'Approved') {
-                    payerStats[payer].wins++;
-                    strategyStats[strategy].wins++;
-                }
-
-                if (lead.submitted_at && lead.settled_at) {
-                    payerStats[payer].totalTatMs += (new Date(lead.settled_at) - new Date(lead.submitted_at));
+                if (outcome === 'Approved') {
+                    p.wins++;
+                    p.strategies[strategy].wins++;
                 }
             }
-
-            // 3. Systemic Patterns
-            const patternKey = `${payer}|${procedure}`;
-            if (!patterns[patternKey]) patterns[patternKey] = { payer, procedure, count: 0, value: 0 };
-            patterns[patternKey].count++;
-            patterns[patternKey].value += parseFloat(lead.estimated_value) || 0;
         });
 
-        const systemicTrends = Object.values(patterns)
-            .filter(p => p.count >= 2)
-            .sort((a, b) => b.value - a.value);
+        // Determine Best Strategy per Payer based on Win Rate
+        const payers = Object.values(payerStats).map(p => {
+            let topWinRate = -1;
+            let bestStr = 'STANDARD_CMS_COMPLIANCE';
 
-        const payers = Object.values(payerStats).map(p => ({
-            ...p,
-            winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 0,
-            avgTatDays: p.processed > 0 ? Math.round(p.totalTatMs / p.processed / (1000 * 60 * 60 * 24)) : 5
-        })).sort((a, b) => b.totalValue - a.totalValue);
+            Object.entries(p.strategies).forEach(([name, stats]) => {
+                const wr = stats.wins / stats.attempts;
+                if (wr > topWinRate) {
+                    topWinRate = wr;
+                    bestStr = name;
+                }
+            });
 
-        const strategies = Object.values(strategyStats).map(s => ({
-            ...s,
-            winRate: s.attempts > 0 ? Math.round((s.wins / s.attempts) * 100) : 0
-        })).sort((a, b) => b.winRate - a.winRate);
+            return {
+                ...p,
+                winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 0,
+                bestStrategy: bestStr
+            };
+        }).sort((a, b) => b.count - a.count);
 
-        const totalPendingValue = leads.filter(l => l.status !== 'Settled').reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
-
-        return res.status(200).json({
-            payers,
-            strategies,
-            trends: systemicTrends,
-            forecast: {
-                totalPendingValue,
-                weightedForecast: Math.round(totalPendingValue * 0.65),
-                avgWinRate: 65
-            }
-        });
+        return res.status(200).json({ payers });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
