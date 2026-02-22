@@ -14,14 +14,30 @@ app.get('/health', (req, res) => {
 
 // Trigger CMS API Polling
 app.post('/poll', async (req, res) => {
-    const result = await apiPoller.checkDenials(req.body.payerId);
-    res.json(result);
+    try {
+        const { payerId, claimId } = req.body;
+        if (!payerId) return res.status(400).json({ error: 'payerId is required' });
+        
+        const result = await apiPoller.checkDenials(payerId, claimId);
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Generate Appeal
 app.post('/generate-appeal', (req, res) => {
-    const appeal = appealGenerator.draft(req.body.denialDetails);
-    res.json({ appeal });
+    try {
+        const { payerId, claimId, reason, timestamp } = req.body;
+        if (!payerId || !claimId || !reason) {
+            return res.status(400).json({ error: 'payerId, claimId, and reason are required' });
+        }
+        
+        const appeal = appealGenerator.draft({ payerId, claimId, reason, timestamp: timestamp || new Date() });
+        res.json({ appeal });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.listen(PORT, () => {
