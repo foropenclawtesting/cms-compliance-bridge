@@ -1,11 +1,17 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 
-// Load Credentials
+// Load Credentials from .env
 const envPath = '/Users/server/.openclaw/workspace/projects/cms-compliance-bridge/.env';
-const env = fs.readFileSync(envPath, 'utf8');
-const supabaseUrl = env.match(/SUPABASE_URL=["']?([^"'\s]+)/)?.[1];
-const supabaseKey = env.match(/SUP[A-Z_]*ANON_KEY[:=]\s*["']?([^"'\s]+)/)?.[1];
+let supabaseUrl, supabaseKey;
+
+try {
+    const env = fs.readFileSync(envPath, 'utf8');
+    supabaseUrl = env.match(/SUPABASE_URL=["']?([^"'\s]+)/)?.[1];
+    supabaseKey = env.match(/SUP[A-Z_]*ANON_KEY[:=]\s*["']?([^"'\s]+)/)?.[1];
+} catch (e) {
+    console.error('Could not load .env file');
+}
 
 async function monitor() {
     if (!supabaseUrl || !supabaseKey) return;
@@ -19,27 +25,37 @@ async function monitor() {
 
         if (error) throw error;
 
+        const notifications = [];
+
         leads.forEach(lead => {
-            // 1. TRIGGER AGENTIC HEALING
+            // 1. AGENTIC HEALING TRIGGER
             if (lead.status === 'Healing Required') {
-                console.log(`---COMMAND_START---`);
-                console.log(`TYPE: AGENTIC_HEAL`);
-                console.log(`PAYER: ${lead.insurance_type}`);
-                console.log(`LEAD_ID: ${lead.id}`);
-                console.log(`INSTRUCTION: Search for the verified "Clinical Appeals & Grievances" fax number for ${lead.insurance_type}. Update the 'payer_rules' table or lead record with the result and reset status to 'Drafted' for re-transmission.`);
-                console.log(`---COMMAND_END---`);
+                notifications.push({
+                    type: 'AGENTIC_HEAL',
+                    payer: lead.insurance_type,
+                    leadId: lead.id,
+                    message: `Fax transmission failed for ${lead.insurance_type}. Initiation Agentic Healing loop.`
+                });
             }
 
-            // 2. REPORT REVENUE VICTORIES
+            // 2. REVENUE VICTORY REPORT
             if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
-                console.log(`---VICTORY_DETECTED---`);
-                console.log(`PATIENT: ${lead.username}`);
-                console.log(`AMOUNT: $${parseFloat(lead.recovered_amount).toLocaleString()}`);
-                console.log(`PAYER: ${lead.insurance_type}`);
-                console.log(`---VICTORY_END---`);
+                notifications.push({
+                    type: 'VICTORY',
+                    patient: lead.username,
+                    amount: parseFloat(lead.recovered_amount),
+                    payer: lead.insurance_type,
+                    message: `Victory! Recovered $${parseFloat(lead.recovered_amount).toLocaleString()} from ${lead.insurance_type} for ${lead.username}.`
+                });
             }
         });
-    } catch (err) { console.error('Monitor Error:', err.message); }
+
+        if (notifications.length > 0) {
+            console.log(JSON.stringify(notifications, null, 2));
+        }
+    } catch (err) { 
+        console.error('Monitor Error:', err.message); 
+    }
 }
 
 monitor();

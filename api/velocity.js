@@ -1,4 +1,4 @@
-const supabase = require('../services/supabaseClient');
+const supabase = require('./services/supabaseClient');
 const { verifyUser } = require('./services/auth');
 
 export default async function handler(req, res) {
@@ -6,28 +6,33 @@ export default async function handler(req, res) {
     if (!user) return;
 
     try {
-        const { data: leads, error } = await supabase
-            .from('healthcare_denial_leads')
-            .select('settled_at, recovered_amount')
-            .eq('final_outcome', 'Approved')
-            .not('settled_at', 'is', null)
-            .order('settled_at', { ascending: true });
+        const last7Days = [];
+        const now = new Date();
 
-        if (error) throw error;
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(now.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
 
-        // Group by day to create a time-series chart
-        const velocity = leads.reduce((acc, lead) => {
-            const date = new Date(lead.settled_at).toISOString().split('T')[0];
-            acc[date] = (acc[date] || 0) + parseFloat(lead.recovered_amount);
-            return acc;
-        }, {});
+            // Fetch total recovered on this specific day
+            const { data, error } = await supabase
+                .from('healthcare_denial_leads')
+                .select('recovered_amount')
+                .eq('status', 'Settled')
+                .gte('settled_at', `${dateStr}T00:00:00Z`)
+                .lte('settled_at', `${dateStr}T23:59:59Z`);
 
-        const chartData = Object.entries(velocity).map(([date, amount]) => ({
-            date,
-            amount
-        }));
+            if (error) throw error;
 
-        return res.status(200).json(chartData);
+            const dailyTotal = data.reduce((sum, lead) => sum + (parseFloat(lead.recovered_amount) || 0), 0);
+            
+            last7Days.push({
+                date: dateStr,
+                amount: dailyTotal
+            });
+        }
+
+        return res.status(200).json(last7Days);
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
