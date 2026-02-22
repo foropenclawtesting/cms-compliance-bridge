@@ -18,18 +18,7 @@ function App() {
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [p2pBrief, setP2pBrief] = useState(null);
-
-  const generateP2P = async (leadId) => {
-    setLoading(true);
-    const res = await fetch('/api/generate-p2p-brief', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ leadId })
-    });
-    const data = await res.json();
-    setP2pBrief(data.briefing);
-    setLoading(false);
-  };
+  const [loading, setLoading] = useState(false);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -97,6 +86,18 @@ function App() {
     setLoading(false);
   };
 
+  const generateP2P = async (leadId) => {
+    setLoading(true);
+    const res = await fetch('/api/generate-p2p-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId })
+    });
+    const data = await res.json();
+    setP2pBrief(data.briefing);
+    setLoading(false);
+  };
+
   const testConnection = async (target) => {
     setLoading(true);
     const res = await fetch('/api/test-connection', {
@@ -132,7 +133,7 @@ function App() {
         <div className="setup-banner">
             <span className="icon">⚠️</span>
             <div className="banner-content">
-                <strong>Database Sync Required:</strong> Missing columns detected. See DEPLOYMENT.md.
+                <strong>Database Sync Required:</strong> Run the SQL migration from DEPLOYMENT.md.
             </div>
         </div>
       )}
@@ -201,13 +202,35 @@ function App() {
                   }}>Review Clinical Package</button>
                 </div>
               ))}
+              {leads.length === 0 && <p className="no-data">No denials detected. Run the local Scout to populate.</p>}
             </div>
           </section>
         )}
 
         {activeTab === 'analytics' && (
           <section className="analytics-section">
-            <h2>Systemic Denial Patterns</h2>
+            <div className="analytics-header">
+                <h2>Payer Performance Command</h2>
+                <p>Strategize recovery based on real-world Turnaround Time (TAT) and Win Rates.</p>
+            </div>
+            
+            <div className="performance-grid">
+              {analytics.payers.map((p, i) => (
+                <div key={i} className={`perf-card ${p.riskScore > 50 ? 'danger' : ''}`}>
+                    <div className="perf-top">
+                        <strong>{p.name}</strong>
+                        {p.riskScore > 50 && <span className="risk-tag">HIGH RISK</span>}
+                    </div>
+                    <div className="perf-metrics">
+                        <div className="metric"><span className="label">Win Rate</span><span className="val">{p.winRate}%</span></div>
+                        <div className="metric"><span className="label">Avg. TAT</span><span className="val">{p.avgTatDays}d</span></div>
+                    </div>
+                    <div className="risk-meter"><div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div></div>
+                </div>
+              ))}
+            </div>
+
+            <h2 style={{marginTop: '3rem'}}>Systemic Denial Patterns</h2>
             <div className="trends-grid">
               {analytics.trends.map((t, i) => (
                 <div key={i} className="trend-card">
@@ -218,18 +241,6 @@ function App() {
                 </div>
               ))}
             </div>
-            <h2 style={{marginTop: '3rem'}}>Payer Risk Meter</h2>
-            <table className="analytics-table">
-                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Risk Score</th></tr></thead>
-                <tbody>{analytics.payers.map((p, i) => (
-                    <tr key={i}>
-                        <td><strong>{p.name}</strong> {p.riskScore > 50 && <span className="risk-tag">HIGH RISK</span>}</td>
-                        <td>{p.winRate}%</td>
-                        <td>{p.avgTatDays}d</td>
-                        <td><div className="risk-meter"><div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div></div></td>
-                    </tr>
-                ))}</tbody>
-            </table>
           </section>
         )}
 
@@ -249,6 +260,25 @@ function App() {
                 ))}</tbody>
             </table>
             <button className="btn-copy-sql" style={{marginTop: '1rem'}} onClick={() => alert('Audit CSV Exported to HIPAA-Safe storage.')}>Export Audit Report</button>
+          </section>
+        )}
+
+        {activeTab === 'rules' && (
+          <section className="rules-section">
+            <div className="section-header">
+                <h2>Verified Payer Directory</h2>
+                <p>The **Self-Healing Agent** automatically updates these numbers if transmissions fail.</p>
+            </div>
+            <table className="rules-table">
+                <thead><tr><th>Insurance Payer</th><th>Verified Fax</th><th>Last Verification</th></tr></thead>
+                <tbody>{directory.map((d, i) => (
+                    <tr key={i}>
+                        <td><strong>{d.payer_name}</strong></td>
+                        <td><code>{d.verified_fax}</code></td>
+                        <td><span className="badge info">{d.last_verified_by || 'Default'}</span></td>
+                    </tr>
+                ))}</tbody>
+            </table>
           </section>
         )}
       </main>
