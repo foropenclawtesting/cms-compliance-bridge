@@ -37,24 +37,24 @@ function App() {
     if (session) fetchLeads();
   }, [session]);
 
+  const [activeTab, setActiveTab] = useState('leads');
+  const [rules, setRules] = useState([]);
+
   const fetchLeads = async () => {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     
     try {
-        const [leadsRes, analyticsRes] = await Promise.all([
+        const [leadsRes, analyticsRes, rulesRes] = await Promise.all([
             fetch('/api/leads', { headers }),
-            fetch('/api/analytics', { headers })
+            fetch('/api/analytics', { headers }),
+            fetch('/api/rules', { headers }) // New endpoint
         ]);
         
-        const leadsData = await leadsRes.json();
-        const analyticsData = await analyticsRes.json();
-        
-        setLeads(leadsData || []);
-        setAnalytics(analyticsData || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
-    } catch (err) {
-        console.error("Fetch failed", err);
-    }
+        setLeads(await leadsRes.json() || []);
+        setAnalytics(await analyticsRes.json() || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+        setRules(await rulesRes.json() || []);
+    } catch (err) { console.error(err); }
   };
 
   const handleLogin = async (e) => {

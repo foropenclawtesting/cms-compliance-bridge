@@ -1,56 +1,48 @@
 const fhirGateway = require('./fhir-gateway');
+const supabase = require('./supabaseClient');
 
 /**
  * API Poller Service
- * Maps FHIR Reason Codes to Specialized Appeal Strategies
+ * Powered by the Programmable Payer Rules Engine
  */
 exports.checkDenials = async (payerId, claimId) => {
     let result = await fhirGateway.fetchEOB(claimId, 'EPIC');
     if (!result) result = await fhirGateway.fetchEOB(claimId, 'SMART_HEALTH');
 
-    if (result) {
-        // Extract Denial Category from FHIR Reason Codes
-        // e.g. Code 197 = Pre-auth required, Code 50 = Medical Necessity
-        const reasonCode = result.adjudication?.[0]?.reason?.coding?.[0]?.code || 'GENERAL';
-        const strategy = getStrategy(reasonCode);
+    let rawReason = 'GENERAL';
+    let disposition = "Claim requires specialized clinical justification.";
 
-        return {
-            status: 'success',
-            source: `FHIR_${result.source}`,
-            payerId: result.raw.insurer?.display || payerId,
-            claimId,
-            denialFound: result.outcome === 'rejected' || result.outcome === 'partial',
-            reason: result.disposition,
-            reasonCode,
-            strategy,
-            timestamp: new Date().toISOString()
-        };
+    if (result) {
+        rawReason = result.adjudication?.[0]?.reason?.coding?.[0]?.code || 'GENERAL';
+        disposition = result.disposition;
+    } else {
+        // Mock fallback logic
+        const mockCodes = ['NECESSITY', 'STEP_THERAPY', 'ADMIN', 'CODING'];
+        rawReason = mockCodes[Math.floor(Math.random() * mockCodes.length)];
     }
 
-    // MOCK Fallback with randomized intelligence
-    const mockCodes = ['NECESSITY', 'STEP_THERAPY', 'ADMIN', 'CODING'];
-    const randomCode = mockCodes[Math.floor(Math.random() * mockCodes.length)];
+    // 1. LOOKUP STRATEGY IN CLOUD RULES ENGINE
+    // We check for a payer-specific match first, then a global fallback (*)
+    const { data: rules } = await supabase
+        .from('payer_rules')
+        .select('strategy')
+        .or(`payer_name.eq.${payerId},payer_name.eq.*`)
+        .eq('reason_code', rawReason)
+        .order('payer_name', { ascending: false }); // Payer-specific comes before '*'
+
+    const strategy = rules?.[0]?.strategy || 'STANDARD_CMS_COMPLIANCE';
+
+    console.log(`[Rules Engine] Match Found: ${rawReason} -> ${strategy} for ${payerId}`);
 
     return {
         status: 'success',
-        source: 'MOCK_ENGINE',
+        source: result ? `FHIR_${result.source}` : 'MOCK_ENGINE',
         payerId,
         claimId,
         denialFound: !claimId.endsWith('99'),
-        reason: "Claim requires specialized clinical justification.",
-        reasonCode: randomCode,
-        strategy: getStrategy(randomCode),
+        reason: disposition,
+        reasonCode: rawReason,
+        strategy,
         timestamp: new Date().toISOString()
     };
 };
-
-function getStrategy(code) {
-    const strategies = {
-        'NECESSITY': 'CLINICAL_PEER_REVIEW',
-        'STEP_THERAPY': 'TREATMENT_FAILURE_LOG',
-        'ADMIN': 'REGULATORY_TIMING_STRIKE',
-        'CODING': 'NPI_VERIFICATION_AUDIT',
-        'GENERAL': 'STANDARD_CMS_COMPLIANCE'
-    };
-    return strategies[code] || strategies.GENERAL;
-}
