@@ -242,7 +242,7 @@ function App() {
             <div className="list-actions">
                 <h2>Pending Denials ({leads.length})</h2>
                 {selectedLeads.length > 0 && (
-                    <button className="btn-primary" onClick={() => alert('Batch Submission Not Configured')}>Submit {selectedLeads.length} Selected Appeals</button>
+                    <button className="btn-primary" onClick={batchSubmit}>Submit {selectedLeads.length} Selected Appeals</button>
                 )}
             </div>
             <div className="grid">
