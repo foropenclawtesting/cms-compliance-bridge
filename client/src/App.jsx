@@ -7,11 +7,18 @@ function App() {
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const [analytics, setAnalytics] = useState([]);
+
   const fetchLeads = () => {
     fetch('/api/leads')
       .then(res => res.json())
       .then(data => setLeads(data))
       .catch(err => console.error("Error fetching leads:", err));
+    
+    fetch('/api/analytics')
+      .then(res => res.json())
+      .then(data => setAnalytics(data))
+      .catch(err => console.error("Error fetching analytics:", err));
   };
 
   useEffect(() => {
@@ -147,6 +154,32 @@ function App() {
             </button>
           </div>
         )}
+
+        <section className="analytics-section">
+          <h2>Payer Performance Analytics</h2>
+          <table className="analytics-table">
+            <thead>
+              <tr>
+                <th>Payer Name</th>
+                <th>Denials Found</th>
+                <th>Potential Revenue</th>
+                <th>Win Rate</th>
+                <th>Recovered</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analytics.map((stat, i) => (
+                <tr key={i}>
+                  <td><strong>{stat.name}</strong></td>
+                  <td>{stat.count}</td>
+                  <td>${stat.totalValue.toLocaleString()}</td>
+                  <td><span className="win-rate-pill">{stat.winRate}%</span></td>
+                  <td className="success"><strong>${parseFloat(stat.wins * (stat.totalValue / stat.count || 0)).toLocaleString()}</strong></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
 
         <section className="leads-list">
           <div className="section-header">
