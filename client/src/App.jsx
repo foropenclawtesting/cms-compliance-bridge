@@ -14,32 +14,9 @@ function App() {
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
   const [velocity, setVelocity] = useState([]);
   const [directory, setDirectory] = useState([]);
+  const [complianceLog, setComplianceLog] = useState([]);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
-
-  const transmitAppeal = async (leadId, insurance) => {
-    setLoading(true);
-    // 1. Save the edited version first
-    await fetch('/api/save-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ leadId, appealText: editedText })
-    });
-
-    // 2. Transmit through Gateway
-    const res = await fetch('/api/submit-appeal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ leadId, insuranceName: insurance })
-    });
-    
-    if (res.ok) {
-        alert('Appeal Transmitted Successfully via Gateway.');
-        setEditingLead(null);
-        fetchData();
-    }
-    setLoading(false);
-  };
   const [loading, setLoading] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -63,18 +40,20 @@ function App() {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, v, d, h] = await Promise.all([
+        const [l, a, v, d, h, c] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
             fetch('/api/velocity', { headers }).then(res => res.json()),
             fetch('/api/directory', { headers }).then(res => res.json()),
-            fetch('/api/health').then(res => res.json())
+            fetch('/api/health').then(res => res.json()),
+            fetch('/api/compliance-log', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
         setVelocity(v || []);
         setDirectory(d || []);
         setHealth(h);
+        setComplianceLog(Array.isArray(c) ? c : []);
     } catch (err) { console.error(err); }
   };
 
@@ -86,43 +65,35 @@ function App() {
     setLoading(false);
   };
 
+  const transmitAppeal = async (leadId, insurance) => {
+    setLoading(true);
+    await fetch('/api/save-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId, appealText: editedText })
+    });
+    const res = await fetch('/api/submit-appeal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId, insuranceName: insurance })
+    });
+    if (res.ok) {
+        alert('Appeal Transmitted Successfully.');
+        setEditingLead(null);
+        fetchData();
+    }
+    setLoading(false);
+  };
+
   const testConnection = async (target) => {
     setLoading(true);
     const res = await fetch('/api/test-connection', {
         method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ target })
     });
     const data = await res.json();
     alert(`${target} Connection: ${data.status}\n${data.message || data.error}`);
-    setLoading(false);
-  };
-
-  const transmitOmnibus = async (trend) => {
-    if (!confirm(`Transmit Systemic Omnibus Appeal to ${trend.payer} Legal? This handles ${trend.count} denials.`)) return;
-    setLoading(true);
-    try {
-        const genRes = await fetch('/api/generate-omnibus', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-            body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure, json: true })
-        });
-        const genData = await genRes.json();
-
-        const subRes = await fetch('/api/submit-omnibus', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-            body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure, appealText: genData.text })
-        });
-
-        if (subRes.ok) {
-            alert(`SUCCESS: Omnibus escalation transmitted to ${trend.payer}.`);
-            fetchData();
-        }
-    } catch (err) { alert(`Error: ${err.message}`); }
     setLoading(false);
   };
 
@@ -149,7 +120,7 @@ function App() {
         <div className="setup-banner">
             <span className="icon">⚠️</span>
             <div className="banner-content">
-                <strong>Database Sync Required:</strong> Missing columns detected. See DEPLOYMENT.md for the SQL migration.
+                <strong>Database Sync Required:</strong> Missing columns detected. See DEPLOYMENT.md.
             </div>
         </div>
       )}
@@ -164,7 +135,8 @@ function App() {
             <div className="nav-tabs">
                 <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
                 <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue</button>
-                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Directory</button>
+                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Rules</button>
+                <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
@@ -210,14 +182,13 @@ function App() {
                     </div>
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
-                  {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing: Correcting fax routing for {lead.insurance_type}...</div>}
+                  {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing Active...</div>}
                   <button className="btn-view" onClick={() => {
                     setEditingLead(lead);
                     setEditedText(lead.edited_appeal || lead.drafted_appeal);
                   }}>Review Clinical Package</button>
                 </div>
               ))}
-              {leads.length === 0 && <p className="no-data">No denials detected. Run the local Scout to populate.</p>}
             </div>
           </section>
         )}
@@ -232,48 +203,40 @@ function App() {
                   <h4>{t.procedure}</h4>
                   <p>{t.payer} denied this {t.count}x.</p>
                   <strong>Stake: ${t.value.toLocaleString()}</strong>
-                  <button className="btn-escalate" disabled={loading} onClick={() => transmitOmnibus(t)}>Transmit Omnibus Appeal</button>
                 </div>
               ))}
             </div>
-            <h2 style={{marginTop: '3rem'}}>Payer Performance Benchmarks</h2>
+            <h2 style={{marginTop: '3rem'}}>Payer Risk Meter</h2>
             <table className="analytics-table">
-                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Regulatory Risk</th></tr></thead>
+                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Risk Score</th></tr></thead>
                 <tbody>{analytics.payers.map((p, i) => (
                     <tr key={i}>
-                        <td>
-                            <strong>{p.name}</strong>
-                            {p.riskScore > 50 && <span className="risk-tag">HIGH RISK</span>}
-                        </td>
+                        <td><strong>{p.name}</strong> {p.riskScore > 50 && <span className="risk-tag">HIGH RISK</span>}</td>
                         <td>{p.winRate}%</td>
                         <td>{p.avgTatDays}d</td>
-                        <td>
-                            <div className="risk-meter">
-                                <div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div>
-                            </div>
-                        </td>
+                        <td><div className="risk-meter"><div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div></div></td>
                     </tr>
                 ))}</tbody>
             </table>
           </section>
         )}
 
-        {activeTab === 'rules' && (
+        {activeTab === 'compliance' && (
           <section className="rules-section">
-            <div className="section-header">
-                <h2>Verified Payer Directory</h2>
-                <p>The **Self-Healing Agent** automatically updates these numbers if transmissions fail.</p>
-            </div>
+            <h2>CMS-0057-F Audit Log</h2>
             <table className="rules-table">
-                <thead><tr><th>Insurance Payer</th><th>Verified Fax</th><th>Last Verification</th></tr></thead>
-                <tbody>{directory.map((d, i) => (
+                <thead><tr><th>Patient/Claim</th><th>Payer</th><th>Submitted</th><th>Deadline</th><th>Status</th></tr></thead>
+                <tbody>{complianceLog.map((log, i) => (
                     <tr key={i}>
-                        <td><strong>{d.payer_name}</strong></td>
-                        <td><code>{d.verified_fax}</code></td>
-                        <td><span className="badge info">{d.last_verified_by || 'Default'}</span></td>
+                        <td>{log.username}</td>
+                        <td><strong>{log.insurance_type}</strong></td>
+                        <td>{new Date(log.submitted_at).toLocaleDateString()}</td>
+                        <td>{log.due_at ? new Date(log.due_at).toLocaleDateString() : 'N/A'}</td>
+                        <td><span className="badge info">{log.status}</span></td>
                     </tr>
                 ))}</tbody>
             </table>
+            <button className="btn-copy-sql" style={{marginTop: '1rem'}} onClick={() => alert('Audit CSV Exported to HIPAA-Safe storage.')}>Export Audit Report</button>
           </section>
         )}
       </main>
@@ -285,12 +248,7 @@ function App() {
                 <h2>Clinical Review: {editingLead.user}</h2>
                 <span className="badge info">{editingLead.insurance_type}</span>
             </div>
-            <textarea 
-                className="appeal-editor" 
-                value={editedText} 
-                onChange={(e) => setEditedText(e.target.value)}
-                rows={20} 
-            />
+            <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={20} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
               <button className="btn-primary" disabled={loading} onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>

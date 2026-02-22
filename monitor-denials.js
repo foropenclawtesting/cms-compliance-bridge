@@ -32,8 +32,11 @@ async function monitor() {
 
             // 2. REPORT REVENUE VICTORIES
             if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
-                // This is picked up by the message tool in the main session
-                console.log(`URGENT: Victory for ${lead.username}. Recovered $${parseFloat(lead.recovered_amount).toLocaleString()}.`);
+                console.log(`---VICTORY_DETECTED---`);
+                console.log(`PATIENT: ${lead.username}`);
+                console.log(`AMOUNT: $${parseFloat(lead.recovered_amount).toLocaleString()}`);
+                console.log(`PAYER: ${lead.insurance_type}`);
+                console.log(`---VICTORY_END---`);
             }
         });
     } catch (err) { console.error('Monitor Error:', err.message); }
