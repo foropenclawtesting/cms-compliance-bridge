@@ -91,6 +91,19 @@ function App() {
               <h2>Appeal Draft (CMS-0057-F Template)</h2>
               <pre>{selectedAppeal}</pre>
               <div className="modal-actions">
+                <button className="btn-download" onClick={async () => {
+                  const res = await fetch('/api/generate-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ appealText: selectedAppeal, claimId: 'APPEAL' })
+                  });
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `CMS_Appeal_${new Date().getTime()}.pdf`;
+                  a.click();
+                }}>Download PDF</button>
                 <button onClick={() => {
                   navigator.clipboard.writeText(selectedAppeal);
                   alert("Copied to clipboard!");

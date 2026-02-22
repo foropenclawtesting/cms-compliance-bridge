@@ -29,5 +29,6 @@ button:hover { filter: brightness(90%); }
 .appeal-preview { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 2rem; }
 .modal-content { background: white; padding: 2rem; border-radius: 12px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; }
 pre { background: #1a202c; color: #a0aec0; padding: 1.5rem; border-radius: 8px; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; border: 1px solid #4a5568; margin: 1.5rem 0; }
-.modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.modal-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.btn-download { background: #2d3748; color: white; }
 .btn-secondary { background: #edf2f7; color: #4a5568; }
