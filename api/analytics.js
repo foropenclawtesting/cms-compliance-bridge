@@ -57,21 +57,39 @@ export default async function handler(req, res) {
             patterns[patternKey].value += val;
         });
 
-        const payers = Object.values(payerStats).map(p => ({
-            ...p,
-            winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 65,
-            riskScore: Math.min(100, Math.round((p.violations * 20) + (100 - (p.processed > 0 ? (p.wins/p.processed)*100 : 65)))),
-            avgTatDays: 5
-        })).sort((a, b) => b.riskScore - a.riskScore);
+        const payers = Object.values(payerStats).map(p => {
+            const winRate = p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 65;
+            const riskScore = Math.min(100, Math.round((p.violations * 20) + (100 - winRate)));
+            
+            return {
+                ...p,
+                winRate,
+                riskScore,
+                avgTatDays: 5
+            };
+        }).sort((a, b) => b.riskScore - a.riskScore);
+
+        // Calculate Risk-Adjusted Weighted Forecast
+        let totalPendingValue = 0;
+        let weightedForecast = 0;
+
+        leads.filter(l => l.status !== 'Settled').forEach(l => {
+            const val = parseFloat(l.estimated_value) || 0;
+            const payerData = payers.find(p => p.name === l.insurance_type);
+            const prob = payerData ? payerData.winRate : 65;
+            
+            totalPendingValue += val;
+            weightedForecast += (val * (prob / 100));
+        });
 
         return res.status(200).json({
             payers,
             rootCauses: Object.entries(rootCauses).map(([name, data]) => ({ name, ...data })),
             trends: Object.values(patterns).filter(p => p.count >= 2).sort((a, b) => b.value - a.value),
             forecast: {
-                totalPendingValue: leads.filter(l => l.status !== 'Settled').reduce((s, l) => s + (parseFloat(l.estimated_value) || 0), 0),
-                weightedForecast: Math.round(leads.filter(l => l.status !== 'Settled').reduce((s, l) => s + ((parseFloat(l.estimated_value) || 0) * 0.65), 0)),
-                avgWinRate: 65
+                totalPendingValue,
+                weightedForecast: Math.round(weightedForecast),
+                avgWinRate: payers.length > 0 ? Math.round(payers.reduce((s, p) => s + p.winRate, 0) / payers.length) : 65
             }
         });
     } catch (error) {
