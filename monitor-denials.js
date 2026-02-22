@@ -59,7 +59,25 @@ async function monitor() {
                 });
             }
 
-            // 4. REVENUE VICTORY REPORT
+            // 4. AUTONOMOUS REFINEMENT TRIGGER
+            if (lead.status === 'New' || lead.status === 'Drafted') {
+                // If defense score is low, trigger autonomous fix
+                const score = lead.defense_audit ? (
+                    (lead.defense_audit.has_clinical_research ? 30 : 0) +
+                    (lead.defense_audit.has_ehr_data ? 40 : 0) +
+                    (lead.defense_audit.has_payer_rule ? 30 : 0)
+                ) : 0;
+
+                if (score < 70) {
+                    notifications.push({
+                        type: 'SELF_REFINE',
+                        leadId: lead.id,
+                        message: `Low defense score (${score}%) for ${lead.username}. Triggering Clinical Self-Refinement loop.`
+                    });
+                }
+            }
+
+            // 5. REVENUE VICTORY REPORT
             if (lead.status === 'Settled' && lead.final_outcome === 'Approved' && lead.recovered_amount > 0) {
                 notifications.push({
                     type: 'VICTORY',
