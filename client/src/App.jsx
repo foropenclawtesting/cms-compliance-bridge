@@ -604,6 +604,7 @@ function App() {
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
               <button className="btn-secondary" onClick={() => generateP2P(editingLead.id)}>P2P Brief</button>
+              <button className="btn-secondary" onClick={() => runNegotiationSim(editingLead)} style={{color: '#805ad5'}}>Negotiation Sim</button>
               <button className="btn-secondary" onClick={() => fetchNetworkIntel(editingLead.title, editingLead.insurance_type)}>Network Intel</button>
               <button className="btn-secondary" onClick={() => window.open(`/api/export-audit?leadId=${editingLead.id}`, '_blank')}>Audit Pack</button>
               {editingLead.status === 'Escalated' && (
@@ -692,6 +693,31 @@ function App() {
             </div>
             <div className="modal-actions">
               <button className="btn-primary" onClick={() => setNetworkIntel(null)}>Apply to Appeal</button>
+            </div>
+          </div>
+        </section>
+      )}
+      {negotiation && (
+        <section className="appeal-preview">
+          <div className="modal-content" style={{ borderTop: '8px solid #805ad5' }}>
+            <div className="modal-header">
+                <h2>Strategic Masterstroke: {negotiation.masterstroke.winning_citation}</h2>
+                <span className="badge success">{negotiation.simulated_win_rate}% Sim Win Rate</span>
+            </div>
+            <div className="rc-card" style={{ background: '#faf5ff', border: '1px solid #d6bcfa', marginTop: '1.5rem' }}>
+                <h3 style={{ color: '#553c9a' }}>Simulation Rationale</h3>
+                <p style={{ fontSize: '0.95rem' }}>{negotiation.masterstroke.rationale}</p>
+                <div className="defense-meter" style={{ marginTop: '1rem' }}>
+                    <span className="meter-label">PROBABILITY INCREASE: +{negotiation.masterstroke.success_boost}%</span>
+                    <div className="meter-bg"><div className="meter-fill" style={{ width: '100%', background: '#805ad5' }}></div></div>
+                </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-primary" style={{ background: '#805ad5' }} onClick={() => {
+                  setEditedText(`${negotiation.masterstroke.winning_citation}\n\n${editedText}`);
+                  setNegotiation(null);
+              }}>Apply Masterstroke to Appeal</button>
+              <button className="btn-secondary" onClick={() => setNegotiation(null)}>Close</button>
             </div>
           </div>
         </section>
