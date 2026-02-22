@@ -4,20 +4,24 @@
  */
 
 exports.draft = (details) => {
-    const { payerId, claimId, reason, timestamp, clinicalEvidence } = details;
+    const { payerId, claimId, reason, timestamp, clinicalEvidence, clinicalSynthesis } = details;
     
     console.log(`Generating comprehensive clinical/regulatory appeal for Claim: ${claimId}...`);
 
     const today = new Date().toLocaleDateString();
 
-    const evidenceSection = clinicalEvidence 
-        ? `
+    let evidenceSection = "";
+    if (clinicalSynthesis) {
+        evidenceSection = `
+CLINICAL NECESSITY JUSTIFICATION:
+${clinicalSynthesis}
+(Ref: ${clinicalEvidence?.title || 'EviDex Intel Engine'})`;
+    } else if (clinicalEvidence) {
+        evidenceSection = `
 CLINICAL EVIDENCE SUPPORT:
-According to recent evidence-based research and dynamic literature monitoring:
 "${clinicalEvidence.snippet.substring(0, 300)}..."
-Source: ${clinicalEvidence.title} (${clinicalEvidence.url})
-This finding suggests that the requested service is consistent with emerging standards of care that may not yet be reflected in static payer medical policies.`
-        : "";
+Source: ${clinicalEvidence.title}`;
+    }
 
     const letterTemplate = `
 DATE: ${today}

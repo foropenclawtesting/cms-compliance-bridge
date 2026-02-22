@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/watch-leads",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/check-outcomes",
+      "schedule": "0 0 * * *"
     }
   ],
   "rewrites": [

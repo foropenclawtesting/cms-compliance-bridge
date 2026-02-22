@@ -55,12 +55,12 @@ function App() {
   };
 
   const totalRecoverable = leads
-    .filter(l => l.status !== 'Submitted')
+    .filter(l => l.status !== 'Settled')
     .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
 
   const totalSubmitted = leads
-    .filter(l => l.status === 'Submitted')
-    .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
+    .filter(l => l.status === 'Settled')
+    .reduce((sum, l) => sum + (parseFloat(l.recovered_amount) || 0), 0);
 
   const calculateTimeLeft = (dueDate) => {
     if (!dueDate) return null;

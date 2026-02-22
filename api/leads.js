@@ -22,7 +22,10 @@ export default async function handler(req, res) {
             drafted_appeal: lead.drafted_appeal,
             edited_appeal: lead.edited_appeal,
             estimated_value: lead.estimated_value,
-            due_at: lead.due_at
+            due_at: lead.due_at,
+            final_outcome: lead.final_outcome,
+            recovered_amount: lead.recovered_amount,
+            settled_at: lead.settled_at
         }));
 
         return res.status(200).json(leads);

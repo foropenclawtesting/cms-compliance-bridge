@@ -47,13 +47,14 @@ export default async function handler(req, res) {
             const deadlineHours = lead.priority === 'High Priority' ? 72 : (7 * 24);
             const dueAt = new Date(createdDate.getTime() + (deadlineHours * 60 * 60 * 1000));
 
-            // 4. Generate Draft with Evidence
+            // 4. Generate Draft with Evidence & Synthesis
             const appealText = appealGenerator.draft({
                 payerId: lead.insurance_type,
                 claimId: `AUTO-${lead.id}`,
                 reason: lead.pain_point,
                 timestamp: lead.created_at,
-                clinicalEvidence: evidence
+                clinicalEvidence: evidence,
+                clinicalSynthesis: lead.clinical_synthesis
             });
 
             // 5. Save back to Supabase
