@@ -10,6 +10,32 @@ exports.draft = (details) => {
 
     const today = new Date().toLocaleDateString();
 
+    // LEVEL 2 / PEER-TO-PEER TEMPLATE
+    if (details.level === 2) {
+        return `
+DATE: ${today}
+TO: ${payerId} - Medical Director / Appeals Committee
+RE: LEVEL 2 EXPEDITED CLINICAL APPEAL & PEER-TO-PEER REQUEST
+Claim #${claimId} | Regulatory Priority: CMS-0057-F Level 2 Redetermination
+
+Dear Medical Director,
+
+We are formally escalating the denial of Claim #${claimId} to a Level 2 Clinical Review. The initial denial failed to acknowledge the significant medical necessity and evidence-based standards provided in our previous submission.
+
+CLINICAL NECESSITY (LEVEL 2 SYNTHESIS):
+${details.clinicalSynthesis || "The requested procedure is the established gold standard for the patient's condition."}
+
+NOTICE OF PEER-TO-PEER REQUEST:
+Under the transparency requirements of the CMS-0057-F mandate, we hereby request an immediate Peer-to-Peer (P2P) consultation between our treating physician and a board-certified reviewer of the same specialty within your organization. 
+
+We believe that a direct clinical dialogue will resolve the misunderstandings present in the Level 1 review. Please contact our department within 24 hours to schedule this consultation.
+
+Sincerely,
+[Medical Director Persona]
+CMS Compliance Bridge - Level 2 Advocacy Division
+        `.trim();
+    }
+
     // ESCALATION TEMPLATE (Notice of Violation)
     if (details.isEscalation) {
         return `
