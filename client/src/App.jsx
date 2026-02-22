@@ -257,7 +257,19 @@ function App() {
     setLoading(false);
   };
 
-  const [patientView, setPatientView] = useState(false);
+  const [patientLetter, setPatientLetter] = useState(null);
+
+  const generateAdvocacyLetter = async (id) => {
+    setLoading(true);
+    const res = await fetch('/api/generate-patient-advocacy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: id })
+    });
+    const data = await res.json();
+    setPatientLetter(data.letterText);
+    setLoading(false);
+  };
 
   if (patientView) {
     return (
@@ -273,7 +285,15 @@ function App() {
             <p className="form-note">Your medical providers are currently challenging the denial for your treatment.</p>
           </div>
           <div className="uplink-section">
-            <h3>Add Your Narrative</h3>
+            <h3>Support Your Appeal</h3>
+            <p className="form-note">Generating a personal grievance letter significantly increases the chance of approval.</p>
+            <button className="btn-primary" onClick={() => generateAdvocacyLetter('SIM-99')}>Generate My Support Letter</button>
+            
+            {patientLetter && (
+                <pre className="appeal-editor" style={{fontSize: '0.75rem', marginTop: '1rem'}}>{patientLetter}</pre>
+            )}
+
+            <h3 style={{marginTop: '2rem'}}>Add Your Narrative</h3>
             <p className="form-note">Personal stories about how this treatment affects your life carry significant regulatory weight.</p>
             <textarea placeholder="Describe how this condition affects your daily life..." rows={6} id="patient-narrative" />
             <button className="btn-primary" style={{width: '100%'}} onClick={async () => {
