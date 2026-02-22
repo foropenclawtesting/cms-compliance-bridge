@@ -3,8 +3,8 @@ import './App.css'
 
 function App() {
   const [leads, setLeads] = useState([]);
-  const [selectedAppeal, setSelectedAppeal] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [editingAppeal, setEditingAppeal] = useState(null);
+  const [editingLeadId, setEditingLeadId] = useState(null);
 
   const fetchLeads = () => {
     fetch('/api/leads')
@@ -13,19 +13,26 @@ function App() {
       .catch(err => console.error("Error fetching leads:", err));
   };
 
-  useEffect(() => {
-    fetchLeads();
-    // Poll for updates every 60 seconds
-    const interval = setInterval(fetchLeads, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const saveEdit = async () => {
+    const res = await fetch('/api/save-draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId: editingLeadId, appealText: editingAppeal })
+    });
+    if(res.ok) {
+      alert("Draft saved successfully.");
+      fetchLeads();
+    }
+  };
 
   const generateAppeal = async (lead) => {
-    // If an auto-draft already exists, just show it
-    if (lead.drafted_appeal) {
-      setSelectedAppeal(lead.drafted_appeal);
+    // If an auto-draft or edit already exists, open it in the editor
+    if (lead.drafted_appeal || lead.edited_appeal) {
+      setEditingAppeal(lead.edited_appeal || lead.drafted_appeal);
+      setEditingLeadId(lead.id);
       return;
     }
+    // ... rest of generate logic
 
     setLoading(true);
     try {
@@ -128,30 +135,40 @@ function App() {
           </div>
         </section>
 
-        {selectedAppeal && (
+        {editingAppeal && (
           <section className="appeal-preview">
             <div className="modal-content">
-              <h2>Appeal Draft (CMS-0057-F Template)</h2>
-              <pre>{selectedAppeal}</pre>
+              <div className="modal-header">
+                <h2>Review & Refine Appeal</h2>
+                <span className="lead-ref">Claim ID: {editingLeadId}</span>
+              </div>
+              
+              <textarea 
+                className="appeal-editor"
+                value={editingAppeal}
+                onChange={(e) => setEditingAppeal(e.target.value)}
+                rows={20}
+              />
+
               <div className="modal-actions">
+                <button className="btn-save" onClick={saveEdit}>Save Changes</button>
                 <button className="btn-download" onClick={async () => {
                   const res = await fetch('/api/generate-pdf', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ appealText: selectedAppeal, claimId: 'APPEAL' })
+                    body: JSON.stringify({ appealText: editingAppeal, claimId: editingLeadId })
                   });
                   const blob = await res.blob();
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `CMS_Appeal_${new Date().getTime()}.pdf`;
+                  a.download = `Appeal_Refined_${editingLeadId}.pdf`;
                   a.click();
                 }}>Download PDF</button>
-                <button onClick={() => {
-                  navigator.clipboard.writeText(selectedAppeal);
-                  alert("Copied to clipboard!");
-                }}>Copy to Clipboard</button>
-                <button className="btn-secondary" onClick={() => setSelectedAppeal(null)}>Close</button>
+                <button className="btn-secondary" onClick={() => {
+                  setEditingAppeal(null);
+                  setEditingLeadId(null);
+                }}>Close</button>
               </div>
             </div>
           </section>

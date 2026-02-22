@@ -6,27 +6,43 @@ const FormData = require('form-data');
 export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).end();
 
-    const { leadId, appealText, insuranceName } = req.body;
+    // The UI now sends leadId and insuranceName. We fetch the best version (Edited > Drafted)
+    const { leadId, insuranceName } = req.body;
 
-    if (!leadId || !appealText) {
-        return res.status(400).json({ error: 'leadId and appealText are required' });
+    if (!leadId) {
+        return res.status(400).json({ error: 'leadId is required' });
     }
 
     try {
-        // 1. Resolve Recipient via Routing Engine
-        const routing = payerRouter.lookup(insuranceName);
+        // 1. Fetch the lead to get the most recent appeal text (Priority: Edited > Drafted)
+        const { data: lead, error: fetchError } = await supabase
+            .from('healthcare_denial_leads')
+            .select('*')
+            .eq('id', leadId)
+            .single();
+
+        if (fetchError || !lead) throw new Error('Lead not found');
+
+        const finalAppealText = lead.edited_appeal || lead.drafted_appeal;
+
+        if (!finalAppealText) {
+            return res.status(400).json({ error: 'No appeal text found to transmit.' });
+        }
+
+        // 2. Resolve Recipient via Routing Engine
+        const routing = payerRouter.lookup(insuranceName || lead.insurance_type);
         const targetFax = routing.fax;
 
-        console.log(`[Submission Gateway] Routing appeal for ${insuranceName} to ${targetFax} (${routing.department})`);
+        console.log(`[Submission Gateway] Transmitting appeal for ${lead.username} to ${targetFax}...`);
 
         let submissionId = `MOCK-${Date.now()}`;
         let logEntry = `Simulated submission to ${targetFax} (No Fax API keys).`;
 
-        // 2. Execute Real Transmission if keys exist
+        // 3. Execute Real Transmission if keys exist
         if (process.env.PHAXIO_KEY && process.env.PHAXIO_SECRET) {
             const form = new FormData();
             form.append('to', targetFax);
-            form.append('string_data', appealText);
+            form.append('string_data', finalAppealText);
             form.append('string_data_type', 'text');
 
             const response = await axios.post('https://api.phaxio.com/v2/faxes', form, {
@@ -41,7 +57,7 @@ export default async function handler(req, res) {
             logEntry = `Phaxio Fax Sent to ${targetFax}. ID: ${submissionId}.`;
         }
 
-        // 3. Update Supabase
+        // 4. Update Supabase
         const { error: updateError } = await supabase
             .from('healthcare_denial_leads')
             .update({ 
