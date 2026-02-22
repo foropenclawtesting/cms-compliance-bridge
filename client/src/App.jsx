@@ -146,10 +146,18 @@ function App() {
   }
 
   const totalRecovered = leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0);
+  const violationCount = leads.filter(l => l.status === 'Discovery Phase' || l.status === 'CMS Escalated').length;
 
   return (
     <div className="dashboard">
-      <header>
+      {violationCount > 0 && (
+        <div className="setup-banner" style={{ background: '#fff5f5', border: '1px solid #feb2b2', color: '#c53030', marginBottom: '2rem' }}>
+            <span className="icon">🚨</span>
+            <div className="banner-content">
+                <strong>Enforcement Protocol Active:</strong> {violationCount} claims are currently in discovery or escalation phase. Monitor the Compliance tab for stonewalling detection.
+            </div>
+        </div>
+      )}
         <div className="header-top">
             <div className="system-status">
                 <span className={`status-dot ${health.checks.database === 'Connected' ? 'green' : 'red'}`}></span> 
