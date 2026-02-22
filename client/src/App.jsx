@@ -6,14 +6,27 @@ function App() {
   const [selectedAppeal, setSelectedAppeal] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const fetchLeads = () => {
     fetch('/api/leads')
       .then(res => res.json())
       .then(data => setLeads(data))
       .catch(err => console.error("Error fetching leads:", err));
+  };
+
+  useEffect(() => {
+    fetchLeads();
+    // Poll for updates every 60 seconds
+    const interval = setInterval(fetchLeads, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const generateAppeal = async (lead) => {
+    // If an auto-draft already exists, just show it
+    if (lead.drafted_appeal) {
+      setSelectedAppeal(lead.drafted_appeal);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch('/api/generate-appeal', {
@@ -21,7 +34,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payerId: lead.insurance_type,
-          claimId: `REQ-${Math.floor(Math.random() * 10000)}`,
+          claimId: `MANUAL-${Math.floor(Math.random() * 10000)}`,
           reason: lead.pain_point,
           timestamp: new Date().toISOString()
         })
@@ -37,22 +50,36 @@ function App() {
   return (
     <div className="dashboard">
       <header>
+        <div className="status-badge">Live Cloud Sync</div>
         <h1>⚡ CMS Compliance Bridge</h1>
-        <p>Real-time Denial Management & Regulatory Appeals</p>
+        <p>Proactive Denial Management & Regulatory Appeals</p>
       </header>
 
       <main>
         <section className="leads-list">
-          <h2>Active Denial Leads</h2>
+          <div className="section-header">
+            <h2>Active Denial Leads</h2>
+            <button className="refresh-btn" onClick={fetchLeads}>↻ Refresh</button>
+          </div>
           <div className="grid">
             {leads.map((lead, i) => (
-              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''}`}>
-                <h3>{lead.user}</h3>
+              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''}`}>
+                <div className="card-header">
+                  <h3>{lead.user}</h3>
+                  {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}
+                </div>
                 <p><strong>Payer:</strong> {lead.insurance_type}</p>
                 <p className="pain-point">{lead.pain_point}</p>
-                <button onClick={() => generateAppeal(lead)} disabled={loading}>
-                  {loading ? 'Generating...' : 'Draft CMS Appeal'}
-                </button>
+                
+                <div className="card-actions">
+                  <button 
+                    className={lead.drafted_appeal ? 'btn-view' : 'btn-generate'}
+                    onClick={() => generateAppeal(lead)} 
+                    disabled={loading}
+                  >
+                    {lead.drafted_appeal ? 'View Auto-Draft' : 'Draft CMS Appeal'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -60,9 +87,17 @@ function App() {
 
         {selectedAppeal && (
           <section className="appeal-preview">
-            <h2>Appeal Draft (CMS-0057-F Template)</h2>
-            <pre>{selectedAppeal}</pre>
-            <button onClick={() => setSelectedAppeal(null)}>Close</button>
+            <div className="modal-content">
+              <h2>Appeal Draft (CMS-0057-F Template)</h2>
+              <pre>{selectedAppeal}</pre>
+              <div className="modal-actions">
+                <button onClick={() => {
+                  navigator.clipboard.writeText(selectedAppeal);
+                  alert("Copied to clipboard!");
+                }}>Copy to Clipboard</button>
+                <button className="btn-secondary" onClick={() => setSelectedAppeal(null)}>Close</button>
+              </div>
+            </div>
           </section>
         )}
       </main>
