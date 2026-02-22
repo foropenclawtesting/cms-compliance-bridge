@@ -99,10 +99,17 @@ function App() {
     return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
   };
 
+  const exportAudit = async () => {
+    window.open('/api/export-audit', '_blank');
+  };
+
   return (
     <div className="dashboard">
       <header>
-        <div className="status-badge">Live Cloud Sync</div>
+        <div className="header-top">
+          <div className="status-badge">Live Cloud Sync</div>
+          <button className="btn-audit" onClick={exportAudit}>📥 Export Audit Report</button>
+        </div>
         <h1>⚡ CMS Compliance Bridge</h1>
         <div className="stats-bar">
           <div className="stat">
