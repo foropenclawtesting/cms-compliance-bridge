@@ -136,6 +136,10 @@ function App() {
             <span className="value success">${totalSettled.toLocaleString()}</span>
           </div>
           <div className="stat">
+            <span className="label">L2 Escalations</span>
+            <span className="value pending">{l2Escalations}</span>
+          </div>
+          <div className="stat">
             <span className="label">Win Rate</span>
             <span className="value success">{winRate}%</span>
           </div>

@@ -10,6 +10,28 @@ exports.draft = (details) => {
 
     const today = new Date().toLocaleDateString();
 
+    // ESCALATION TEMPLATE (Notice of Violation)
+    if (details.isEscalation) {
+        return `
+DATE: ${today}
+TO: ${payerId} - Compliance & Legal Department
+RE: NOTICE OF REGULATORY NON-COMPLIANCE - Claim #${claimId}
+MANDATE: CMS-0057-F Interoperability & Prior Authorization Violation
+
+Dear Compliance Officer,
+
+This letter serves as a formal Notice of Violation regarding Claim #${claimId}. 
+
+Under the CMS-0057-F Interoperability and Prior Authorization Final Rule, your organization is mandated to provide a decision on prior authorization requests within ${details.priority === 'High Priority' ? '72 hours' : '7 calendar days'}. 
+
+As of ${today}, the regulatory window for this claim has expired without a compliant decision or actionable justification via the required FHIR API endpoints. We request an immediate expedited redetermination and a written explanation for this processing delay to ensure patient safety and regulatory adherence.
+
+Sincerely,
+[Automated Compliance Enforcement Engine]
+CMS Compliance Bridge
+        `.trim();
+    }
+
     let evidenceSection = "";
     if (clinicalSynthesis) {
         evidenceSection = `
