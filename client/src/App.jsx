@@ -13,7 +13,7 @@ function App() {
   const [leads, setLeads] = useState([]);
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
   const [velocity, setVelocity] = useState([]);
-  const [rules, setRules] = useState([]);
+  const [directory, setDirectory] = useState([]);
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -27,31 +27,29 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (session) fetchData();
-    checkHealth();
+    if (session) {
+        fetchData();
+        const interval = setInterval(fetchData, 30000); // 30s refresh for live status
+        return () => clearInterval(interval);
+    }
   }, [session]);
-
-  const checkHealth = async () => {
-    try {
-        const res = await fetch('/api/health');
-        setHealth(await res.json());
-    } catch (e) { console.error("Health check failed"); }
-  };
 
   const fetchData = async () => {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, r, v] = await Promise.all([
+        const [l, a, v, d, h] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
-            fetch('/api/rules', { headers }).then(res => res.json()),
-            fetch('/api/velocity', { headers }).then(res => res.json())
+            fetch('/api/velocity', { headers }).then(res => res.json()),
+            fetch('/api/directory', { headers }).then(res => res.json()),
+            fetch('/api/health').then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
-        setRules(r || []);
         setVelocity(v || []);
+        setDirectory(d || []);
+        setHealth(h);
     } catch (err) { console.error(err); }
   };
 
@@ -78,14 +76,15 @@ function App() {
     );
   }
 
+  const totalRecovered = leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0);
+
   return (
     <div className="dashboard">
       {health.checks.schema !== 'Synchronized' && (
         <div className="setup-banner">
             <span className="icon">⚠️</span>
             <div className="banner-content">
-                <strong>Database Setup Required:</strong> Your Supabase schema is missing required columns (estimated_value, due_at, etc.). 
-                <button className="btn-copy-sql" onClick={() => alert("Please copy the SQL from your terminal and run it in the Supabase SQL Editor.")}>View Migration SQL</button>
+                <strong>Database Sync Required:</strong> Missing columns detected. Run the SQL Migration to enable the Medical Director agent.
             </div>
         </div>
       )}
@@ -95,11 +94,12 @@ function App() {
             <div className="system-status">
                 <span className={`status-dot ${health.checks.database === 'Connected' ? 'green' : 'red'}`}></span> DB: {health.checks.database}
                 <span className="status-dot green"></span> FHIR: Active
+                <span className="status-dot green"></span> HEALING: Active
             </div>
             <div className="nav-tabs">
                 <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
                 <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Revenue</button>
-                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Logic</button>
+                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Payer Directory</button>
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
@@ -110,10 +110,10 @@ function App() {
                 <p>HIPAA-Compliant Revenue Recovery Engine</p>
             </div>
             <div className="velocity-widget">
-                <span className="widget-label">Recovery Speed</span>
+                <span className="widget-label">Recovery Speed (7d)</span>
                 <div className="mini-chart">
                     {velocity.map((v, i) => (
-                        <div key={i} className="bar" style={{height: `${Math.min(100, (v.amount/10000)*100)}%`}}></div>
+                        <div key={i} className="bar" style={{height: `${Math.min(100, (v.amount/10000)*100)}%`}} title={`${v.date}: $${v.amount}`}></div>
                     ))}
                 </div>
             </div>
@@ -122,6 +122,7 @@ function App() {
         <div className="stats-bar">
           <div className="stat"><span className="label">Total Potential</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
           <div className="stat"><span className="label">Forecasted Win</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Recovered Amount</span><span className="value success">${totalRecovered.toLocaleString()}</span></div>
           <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
       </header>
@@ -131,7 +132,7 @@ function App() {
           <section className="leads-list">
             <div className="grid">
               {leads.map((lead, i) => (
-                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''} ${lead.status === 'Healing Required' ? 'healing' : ''}`}>
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
@@ -142,6 +143,7 @@ function App() {
                     </div>
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
+                  {lead.status === 'Healing Required' && <div className="healing-notice">🤖 Agentic Healing: Correcting fax routing for {lead.insurance_type}...</div>}
                   <button className="btn-view" onClick={() => setEditingAppeal(lead.drafted_appeal)}>Review Clinical Package</button>
                 </div>
               ))}
@@ -163,7 +165,7 @@ function App() {
                 </div>
               ))}
             </div>
-            <h2 style={{marginTop: '3rem'}}>Payer Benchmarks</h2>
+            <h2 style={{marginTop: '3rem'}}>Payer Performance Benchmarks</h2>
             <table className="analytics-table">
                 <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th></tr></thead>
                 <tbody>{analytics.payers.map((p, i) => (
@@ -175,11 +177,18 @@ function App() {
 
         {activeTab === 'rules' && (
           <section className="rules-section">
-            <h2>Payer Logic Configuration</h2>
+            <div className="section-header">
+                <h2>Verified Payer Directory</h2>
+                <p>The **Self-Healing Agent** automatically updates these numbers if transmissions fail.</p>
+            </div>
             <table className="rules-table">
-                <thead><tr><th>Payer</th><th>Reason</th><th>Strategy</th></tr></thead>
-                <tbody>{rules.map((r, i) => (
-                    <tr key={i}><td>{r.payer_name}</td><td><code>{r.reason_code}</code></td><td>{r.strategy.replace(/_/g, ' ')}</td></tr>
+                <thead><tr><th>Insurance Payer</th><th>Verified Fax</th><th>Last Verification</th></tr></thead>
+                <tbody>{directory.map((d, i) => (
+                    <tr key={i}>
+                        <td><strong>{d.payer_name}</strong></td>
+                        <td><code>{d.verified_fax}</code></td>
+                        <td><span className="badge info">{d.last_verified_by || 'Default'}</span></td>
+                    </tr>
                 ))}</tbody>
             </table>
           </section>
