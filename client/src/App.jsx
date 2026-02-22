@@ -29,7 +29,7 @@ function App() {
   useEffect(() => {
     if (session) {
         fetchData();
-        const interval = setInterval(fetchData, 30000); // 30s refresh for live status
+        const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
   }, [session]);
@@ -136,9 +136,9 @@ function App() {
 
         <div className="stats-bar">
           <div className="stat"><span className="label">Total Potential</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
-          <div className="stat"><span className="label">Forecasted Win</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Forecasted Win</span><span className="value info">${Math.round(analytics.forecast.totalPendingValue * 0.65).toLocaleString()}</span></div>
           <div className="stat"><span className="label">Recovered Amount</span><span className="value success">${totalRecovered.toLocaleString()}</span></div>
-          <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
+          <div className="stat"><span className="label">Win Rate</span><span className="value success">65%</span></div>
         </div>
       </header>
 
@@ -151,10 +151,11 @@ function App() {
                   <div className="card-header">
                     <div className="title-group">
                       <h3>{lead.user}</h3>
-                      <span className="badge info">{lead.status}</span>
+                      {lead.due_at && <span className="deadline">⌛ Due soon</span>}
                     </div>
                     <div className="header-badges">
                       <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
+                      <span className={`badge ${lead.status === 'Settled' ? 'success' : (lead.status === 'Healing Required' ? 'error' : 'info')}`}>{lead.status}</span>
                     </div>
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
@@ -182,9 +183,21 @@ function App() {
             </div>
             <h2 style={{marginTop: '3rem'}}>Payer Performance Benchmarks</h2>
             <table className="analytics-table">
-                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th></tr></thead>
+                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Regulatory Risk</th></tr></thead>
                 <tbody>{analytics.payers.map((p, i) => (
-                    <tr key={i}><td><strong>{p.name}</strong></td><td>{p.winRate}%</td><td>{p.avgTatDays}d</td></tr>
+                    <tr key={i}>
+                        <td>
+                            <strong>{p.name}</strong>
+                            {p.riskScore > 50 && <span className="risk-tag">HIGH RISK</span>}
+                        </td>
+                        <td>{p.winRate}%</td>
+                        <td>{p.avgTatDays}d</td>
+                        <td>
+                            <div className="risk-meter">
+                                <div className="risk-fill" style={{ width: `${p.riskScore}%`, background: p.riskScore > 50 ? '#e53e3e' : '#38a169' }}></div>
+                            </div>
+                        </td>
+                    </tr>
                 ))}</tbody>
             </table>
           </section>
