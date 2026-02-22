@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "crons": [
+    {
+      "path": "/api/cron/watch-leads",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/client/dist/$1"
+    }
+  ]
+}
