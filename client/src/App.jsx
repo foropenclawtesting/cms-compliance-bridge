@@ -101,18 +101,32 @@ function App() {
                     {lead.drafted_appeal ? (lead.status === 'Submitted' ? 'View Submitted' : 'View Auto-Draft') : 'Draft CMS Appeal'}
                   </button>
                   {lead.status === 'Drafted' && (
-                    <button className="btn-submit" onClick={async () => {
-                      if(!confirm("Submit this appeal to the payer portal?")) return;
-                      const res = await fetch('/api/submit-appeal', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ leadId: lead.id, appealText: lead.drafted_appeal })
-                      });
-                      if(res.ok) {
-                        alert("Appeal submitted successfully!");
-                        fetchLeads();
-                      }
-                    }}>Submit to Payer</button>
+                    <div className="submission-control">
+                      <input 
+                        type="text" 
+                        placeholder="Recipient Fax #" 
+                        defaultValue="1-800-555-0199"
+                        id={`fax-${lead.id}`}
+                      />
+                      <button className="btn-submit" onClick={async () => {
+                        const faxNum = document.getElementById(`fax-${lead.id}`).value;
+                        if(!confirm(`Submit this appeal via Electronic Fax to ${faxNum}?`)) return;
+                        
+                        const res = await fetch('/api/submit-appeal', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            leadId: lead.id, 
+                            appealText: lead.drafted_appeal,
+                            recipientFax: faxNum
+                          })
+                        });
+                        if(res.ok) {
+                          alert("Appeal transmitted successfully!");
+                          fetchLeads();
+                        }
+                      }}>Transmit Appeal</button>
+                    </div>
                   )}
                 </div>
               </div>
