@@ -139,7 +139,24 @@ function App() {
     setLoading(false);
   };
 
-  const testConnection = async (target) => {
+  const requestP2P = async (leadId) => {
+    const availability = prompt("Enter Physician Availability (e.g. Mon/Wed 8am-9am):", "Mon-Fri 8am-10am EST");
+    if (!availability) return;
+    
+    setLoading(true);
+    const res = await fetch('/api/request-p2p', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId, availability })
+    });
+    if (res.ok) {
+        alert('P2P Scheduling Request Transmitted to Payer.');
+        setP2pBrief(null);
+        setEditingLead(null);
+        fetchData();
+    }
+    setLoading(false);
+  };
     setLoading(true);
     const res = await fetch('/api/test-connection', {
         method: 'POST',
@@ -381,7 +398,8 @@ function App() {
             <div className="modal-header"><h2>Physician P2P Briefing</h2></div>
             <pre className="appeal-editor" style={{ background: '#f0f4f8', color: '#2d3748' }}>{p2pBrief}</pre>
             <div className="modal-actions">
-              <button className="btn-primary" onClick={() => setP2pBrief(null)}>Close Briefing</button>
+              <button className="btn-secondary" onClick={() => setP2pBrief(null)}>Close</button>
+              <button className="btn-primary" onClick={() => requestP2P(editingLead.id)}>Transmit P2P Request</button>
             </div>
           </div>
         </section>
