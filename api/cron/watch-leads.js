@@ -23,26 +23,22 @@ export default async function handler(req, res) {
         const results = [];
 
         for (const lead of leads) {
-            // 2. Resolve Clinical Evidence/Synthesis
-            const { data: evidence } = await supabase
-                .from('clinical_intel')
-                .select('*')
-                .limit(1)
-                .single(); // Simplify for the cron run
-
+            // 2. Resolve Strategy and Outcome Decision
+            const adjudication = await apiPoller.checkDenials(lead.insurance_type, `AUTO-${lead.id}`);
+            
             // 3. Calculate CMS-0057-F Deadline
             const createdDate = new Date(lead.created_at);
             const deadlineHours = lead.priority === 'High Priority' ? 72 : (7 * 24);
             const dueAt = new Date(createdDate.getTime() + (deadlineHours * 60 * 60 * 1000));
 
-            // 4. Generate Draft (detecting L1 vs L2)
+            // 4. Generate Draft (using Adjudication Strategy)
             const appealText = appealGenerator.draft({
                 payerId: lead.insurance_type,
                 claimId: `AUTO-${lead.id}`,
                 reason: lead.pain_point,
                 timestamp: lead.created_at,
-                clinicalEvidence: evidence,
                 clinicalSynthesis: lead.clinical_synthesis,
+                strategy: adjudication.strategy,
                 level: lead.status === 'Level 2 Pending' ? 2 : 1
             });
 
@@ -54,7 +50,9 @@ export default async function handler(req, res) {
                 .update({ 
                     drafted_appeal: appealText,
                     status: newStatus,
-                    due_at: dueAt.toISOString()
+                    due_at: dueAt.toISOString(),
+                    reason_code: adjudication.reasonCode,
+                    strategy: adjudication.strategy
                 })
                 .eq('id', lead.id);
 

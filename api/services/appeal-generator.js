@@ -1,17 +1,17 @@
 /**
  * Appeal Generator Service
- * Enhanced with Clinical Evidence (EviDex) and Regulatory Compliance (CMS-0057-F)
+ * Enhanced with Clinical Reason Intelligence and Regulatory Compliance (CMS-0057-F)
  */
 
 exports.draft = (details) => {
-    const { payerId, claimId, reason, timestamp, clinicalEvidence, clinicalSynthesis } = details;
+    const { payerId, claimId, reason, timestamp, clinicalEvidence, clinicalSynthesis, strategy, level, isEscalation } = details;
     
-    console.log(`Generating comprehensive clinical/regulatory appeal for Claim: ${claimId}...`);
+    console.log(`Generating strategic ${strategy || 'Standard'} appeal for Claim: ${claimId}...`);
 
     const today = new Date().toLocaleDateString();
 
-    // LEVEL 2 / PEER-TO-PEER TEMPLATE
-    if (details.level === 2) {
+    // 1. LEVEL 2 / PEER-TO-PEER TEMPLATE
+    if (level === 2) {
         return `
 DATE: ${today}
 TO: ${payerId} - Medical Director / Appeals Committee
@@ -23,12 +23,10 @@ Dear Medical Director,
 We are formally escalating the denial of Claim #${claimId} to a Level 2 Clinical Review. The initial denial failed to acknowledge the significant medical necessity and evidence-based standards provided in our previous submission.
 
 CLINICAL NECESSITY (LEVEL 2 SYNTHESIS):
-${details.clinicalSynthesis || "The requested procedure is the established gold standard for the patient's condition."}
+${clinicalSynthesis || "The requested procedure is the established gold standard for the patient's condition."}
 
 NOTICE OF PEER-TO-PEER REQUEST:
 Under the transparency requirements of the CMS-0057-F mandate, we hereby request an immediate Peer-to-Peer (P2P) consultation between our treating physician and a board-certified reviewer of the same specialty within your organization. 
-
-We believe that a direct clinical dialogue will resolve the misunderstandings present in the Level 1 review. Please contact our department within 24 hours to schedule this consultation.
 
 Sincerely,
 [Medical Director Persona]
@@ -36,8 +34,8 @@ CMS Compliance Bridge - Level 2 Advocacy Division
         `.trim();
     }
 
-    // ESCALATION TEMPLATE (Notice of Violation)
-    if (details.isEscalation) {
+    // 2. ESCALATION TEMPLATE (Notice of Violation)
+    if (isEscalation) {
         return `
 DATE: ${today}
 TO: ${payerId} - Compliance & Legal Department
@@ -46,15 +44,25 @@ MANDATE: CMS-0057-F Interoperability & Prior Authorization Violation
 
 Dear Compliance Officer,
 
-This letter serves as a formal Notice of Violation regarding Claim #${claimId}. 
-
-Under the CMS-0057-F Interoperability and Prior Authorization Final Rule, your organization is mandated to provide a decision on prior authorization requests within ${details.priority === 'High Priority' ? '72 hours' : '7 calendar days'}. 
-
-As of ${today}, the regulatory window for this claim has expired without a compliant decision or actionable justification via the required FHIR API endpoints. We request an immediate expedited redetermination and a written explanation for this processing delay to ensure patient safety and regulatory adherence.
+This letter serves as a formal Notice of Violation regarding Claim #${claimId}. Under the CMS-0057-F Rule, your organization is mandated to provide a decision within the regulatory window. Failure to resolve this results in formal escalation to CMS.
 
 Sincerely,
 [Automated Compliance Enforcement Engine]
 CMS Compliance Bridge
+        `.trim();
+    }
+
+    // 3. STRATEGY-SPECIFIC MODIFIERS (The "Scalpel")
+    let strategyPreamble = "";
+    if (strategy === 'TREATMENT_FAILURE_LOG' || strategy === 'STEP_THERAPY') {
+        strategyPreamble = `
+SPECIALTY NOTICE (STEP THERAPY VIOLATION):
+This appeal addresses a "Fail First" (Step Therapy) protocol violation. Forcing a delay in the prescribed treatment is clinically contraindicated given the patient's acute status. We request an immediate override based on clinical peer-reviewed standards.
+        `.trim();
+    } else if (strategy === 'CLINICAL_PEER_REVIEW') {
+        strategyPreamble = `
+CLINICAL NOTICE (MEDICAL NECESSITY):
+This denial for Medical Necessity is being appealed with a formal request for an expedited clinical review by a board-certified specialist of the same specialty.
         `.trim();
     }
 
@@ -71,6 +79,7 @@ CLINICAL EVIDENCE SUPPORT:
 Source: ${clinicalEvidence.title}`;
     }
 
+    // 4. FINAL ASSEMBLY
     const letterTemplate = `
 DATE: ${today}
 TO: ${payerId} - Claims & Appeals Department
@@ -80,6 +89,8 @@ REGULATORY NOTICE: CMS-0057-F Compliance Violation & Clinical Evidence Submissio
 Dear Claims Review Committee,
 
 This letter serves as a formal appeal for the denial of Claim #${claimId} (${reason}).
+
+${strategyPreamble}
 
 ${evidenceSection}
 

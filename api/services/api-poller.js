@@ -2,17 +2,18 @@ const fhirGateway = require('./fhir-gateway');
 
 /**
  * API Poller Service
- * Balanced between Real FHIR and High-Fidelity Mock for Edge Cases
+ * Maps FHIR Reason Codes to Specialized Appeal Strategies
  */
 exports.checkDenials = async (payerId, claimId) => {
-    // 1. Try Real FHIR Sandboxes first (Epic then SmartHealth)
     let result = await fhirGateway.fetchEOB(claimId, 'EPIC');
-    
-    if (!result) {
-        result = await fhirGateway.fetchEOB(claimId, 'SMART_HEALTH');
-    }
+    if (!result) result = await fhirGateway.fetchEOB(claimId, 'SMART_HEALTH');
 
     if (result) {
+        // Extract Denial Category from FHIR Reason Codes
+        // e.g. Code 197 = Pre-auth required, Code 50 = Medical Necessity
+        const reasonCode = result.adjudication?.[0]?.reason?.coding?.[0]?.code || 'GENERAL';
+        const strategy = getStrategy(reasonCode);
+
         return {
             status: 'success',
             source: `FHIR_${result.source}`,
@@ -20,23 +21,36 @@ exports.checkDenials = async (payerId, claimId) => {
             claimId,
             denialFound: result.outcome === 'rejected' || result.outcome === 'partial',
             reason: result.disposition,
+            reasonCode,
+            strategy,
             timestamp: new Date().toISOString()
         };
     }
 
-    // 2. Fallback to High-Fidelity Mock if no sandbox is reachable
-    console.log(`[FHIR] Falling back to Mock Engine for Claim ${claimId}`);
-    
-    // TEST OVERRIDE: Simulate an approval if the claimId ends in '99'
-    const isMockApproval = claimId.endsWith('99');
+    // MOCK Fallback with randomized intelligence
+    const mockCodes = ['NECESSITY', 'STEP_THERAPY', 'ADMIN', 'CODING'];
+    const randomCode = mockCodes[Math.floor(Math.random() * mockCodes.length)];
 
     return {
         status: 'success',
         source: 'MOCK_ENGINE',
         payerId,
         claimId,
-        denialFound: !isMockApproval,
-        reason: isMockApproval ? "Prior Authorization Approved per CMS-0057-F appeal." : "Claim requires clinical documentation supporting Medical Necessity (CMS-0057-F Section 4.2).",
+        denialFound: !claimId.endsWith('99'),
+        reason: "Claim requires specialized clinical justification.",
+        reasonCode: randomCode,
+        strategy: getStrategy(randomCode),
         timestamp: new Date().toISOString()
     };
 };
+
+function getStrategy(code) {
+    const strategies = {
+        'NECESSITY': 'CLINICAL_PEER_REVIEW',
+        'STEP_THERAPY': 'TREATMENT_FAILURE_LOG',
+        'ADMIN': 'REGULATORY_TIMING_STRIKE',
+        'CODING': 'NPI_VERIFICATION_AUDIT',
+        'GENERAL': 'STANDARD_CMS_COMPLIANCE'
+    };
+    return strategies[code] || strategies.GENERAL;
+}

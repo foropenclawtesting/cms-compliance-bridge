@@ -1,6 +1,11 @@
 const supabase = require('./services/supabaseClient');
+const { verifyUser } = require('./services/auth');
 
 export default async function handler(req, res) {
+    // 1. Verify User Session
+    const user = await verifyUser(req, res);
+    if (!user) return; // verifyUser handles 401 response
+
     try {
         const { data, error } = await supabase
             .from('healthcare_denial_leads')
@@ -9,7 +14,6 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
-        // Map Supabase fields to the UI's expected format if they differ
         const leads = data.map(lead => ({
             id: lead.id,
             user: lead.username,
