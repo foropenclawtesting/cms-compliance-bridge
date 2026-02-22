@@ -72,6 +72,21 @@ function App() {
     setLoading(false);
   };
 
+  const syncToBilling = async (lead) => {
+    if (!confirm(`Post $${lead.recovered_amount} recovery to Hospital Billing System?`)) return;
+    setLoading(true);
+    const res = await fetch('/api/billing-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId: lead.id, amount: lead.recovered_amount, payer: lead.insurance_type })
+    });
+    if (res.ok) {
+        alert('Revenue Posted Successfully to EHR Finance Module.');
+        fetchData();
+    }
+    setLoading(false);
+  };
+
   const transmitAppeal = async (leadId, insurance) => {
     setLoading(true);
     
@@ -313,6 +328,9 @@ function App() {
                         <div className="header-badges">
                           {lead.ehr_verified && <span className="badge success" style={{fontSize: '0.5rem'}}>EHR VERIFIED</span>}
                           {lead.submission_log?.includes('Portal Sync') && <span className="badge info" style={{fontSize: '0.5rem', background: '#e9d8fd', color: '#553c9a'}}>PORTAL DETECTED</span>}
+                          {lead.status === 'Settled' && !lead.submission_log?.includes('Revenue Sync') && (
+                              <button className="status-link" style={{fontSize: '0.5rem', color: '#38a169', fontWeight: 900}} onClick={(e) => { e.stopPropagation(); syncToBilling(lead); }}>POST REVENUE</button>
+                          )}
                           <span className="probability-tag">{lead.success_probability}% Chance</span>
                           <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
                         </div>
