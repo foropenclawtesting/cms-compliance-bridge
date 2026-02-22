@@ -61,6 +61,21 @@ function App() {
     setLoading(false);
   };
 
+  const testConnection = async (target) => {
+    setLoading(true);
+    const res = await fetch('/api/test-connection', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ target })
+    });
+    const data = await res.json();
+    alert(`${target} Connection: ${data.status}\n${data.message || data.error}`);
+    setLoading(false);
+  };
+
   if (!session) {
     return (
       <div className="login-screen">
@@ -92,9 +107,9 @@ function App() {
       <header>
         <div className="header-top">
             <div className="system-status">
-                <span className={`status-dot ${health.checks.database === 'Connected' ? 'green' : 'red'}`}></span> DB: {health.checks.database}
-                <span className="status-dot green"></span> FHIR: Active
-                <span className="status-dot green"></span> HEALING: Active
+                <span className={`status-dot ${health.checks.database === 'Connected' ? 'green' : 'red'}`}></span> 
+                <button className="status-link" onClick={() => testConnection('FHIR')}>FHIR: Active</button>
+                <button className="status-link" onClick={() => testConnection('FAX')}>GATEWAY: Live</button>
             </div>
             <div className="nav-tabs">
                 <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>

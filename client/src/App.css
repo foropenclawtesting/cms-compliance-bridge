@@ -6,6 +6,8 @@ header { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2re
 
 .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .system-status { font-size: 0.7rem; color: #718096; font-weight: bold; display: flex; gap: 1rem; align-items: center; }
+.status-link { background: none; border: none; color: #718096; font-size: 0.7rem; font-weight: 800; cursor: pointer; padding: 0; text-decoration: underline; width: auto; }
+.status-link:hover { color: #2d3748; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
 .status-dot.green { background: #38a169; box-shadow: 0 0 5px #38a169; }
 .status-dot.red { background: #e53e3e; box-shadow: 0 0 5px #e53e3e; }
