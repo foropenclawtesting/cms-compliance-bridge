@@ -312,6 +312,7 @@ function App() {
                         </div>
                         <div className="header-badges">
                           {lead.ehr_verified && <span className="badge success" style={{fontSize: '0.5rem'}}>EHR VERIFIED</span>}
+                          {lead.submission_log?.includes('Portal Sync') && <span className="badge info" style={{fontSize: '0.5rem', background: '#e9d8fd', color: '#553c9a'}}>PORTAL DETECTED</span>}
                           <span className="probability-tag">{lead.success_probability}% Chance</span>
                           <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
                         </div>
