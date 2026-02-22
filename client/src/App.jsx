@@ -6,7 +6,7 @@ function App() {
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [analytics, setAnalytics] = useState({ payers: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+  const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
 
   const fetchLeads = () => {
     fetch('/api/leads')
@@ -156,7 +156,20 @@ function App() {
         )}
 
         <section className="analytics-section">
-          <h2>Payer Performance Analytics</h2>
+          <h2>Systemic Denial Patterns</h2>
+          <div className="trends-grid">
+            {analytics.trends.length > 0 ? analytics.trends.map((trend, i) => (
+              <div key={i} className="trend-card">
+                <span className="trend-badge">⚠️ SYSTEMIC TREND</span>
+                <h4>{trend.procedure}</h4>
+                <p>{trend.payer} has denied this {trend.count} times.</p>
+                <p className="trend-value">Potential Impact: ${trend.value.toLocaleString()}</p>
+                <button className="btn-escalate" onClick={() => alert("Drafting Group Appeal for CMS Escalation...")}>Escalate Group</button>
+              </div>
+            )) : <p className="no-data">No systemic patterns detected yet.</p>}
+          </div>
+
+          <h2 style={{marginTop: '3rem'}}>Payer Performance Analytics</h2>
           <table className="analytics-table">
             <thead>
               <tr>

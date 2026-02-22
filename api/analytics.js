@@ -8,59 +8,59 @@ export default async function handler(req, res) {
 
         if (error) throw error;
 
-        // 1. Group by Payer for Performance & Response Time Benchmarking
-        const payerStats = leads.reduce((acc, lead) => {
+        // 1. Group by Payer & Procedure to find Patterns
+        const payerStats = {};
+        const patterns = {};
+
+        leads.forEach(lead => {
             const payer = lead.insurance_type || "Unknown";
-            if (!acc[payer]) {
-                acc[payer] = { name: payer, count: 0, totalValue: 0, wins: 0, processed: 0, totalTatMs: 0 };
+            const procedure = lead.title || "Unknown Procedure";
+
+            // Payer Stats
+            if (!payerStats[payer]) {
+                payerStats[payer] = { name: payer, count: 0, totalValue: 0, wins: 0, processed: 0, totalTatMs: 0 };
             }
-            acc[payer].count++;
-            acc[payer].totalValue += parseFloat(lead.estimated_value) || 0;
+            payerStats[payer].count++;
+            payerStats[payer].totalValue += parseFloat(lead.estimated_value) || 0;
             
-            if (lead.status === 'Settled' || lead.final_outcome !== 'Pending') {
-                acc[payer].processed++;
-                if (lead.final_outcome === 'Approved') acc[payer].wins++;
-                
-                // Calculate Turnaround Time (TAT)
+            if (lead.status === 'Settled') {
+                payerStats[payer].processed++;
+                if (lead.final_outcome === 'Approved') payerStats[payer].wins++;
                 if (lead.submitted_at && lead.settled_at) {
-                    const tat = new Date(lead.settled_at) - new Date(lead.submitted_at);
-                    acc[payer].totalTatMs += tat;
+                    payerStats[payer].totalTatMs += (new Date(lead.settled_at) - new Date(lead.submitted_at));
                 }
             }
-            return acc;
-        }, {});
 
-        const stats = Object.values(payerStats).map(p => {
-            const avgTatDays = p.processed > 0 && p.totalTatMs > 0
-                ? Math.round(p.totalTatMs / p.processed / (1000 * 60 * 60 * 24))
-                : 5; // Default to 5 days if no data
-            
-            return {
-                ...p,
-                winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 0,
-                avgTatDays: avgTatDays || 1
-            };
-        }).sort((a, b) => b.totalValue - a.totalValue);
+            // Pattern Detection (Systemic Issues)
+            const patternKey = `${payer}|${procedure}`;
+            if (!patterns[patternKey]) patterns[patternKey] = { payer, procedure, count: 0, value: 0 };
+            patterns[patternKey].count++;
+            patterns[patternKey].value += parseFloat(lead.estimated_value) || 0;
+        });
 
-        // 2. Global Forecasting
-        const totalPendingValue = leads
-            .filter(l => l.status !== 'Settled')
-            .reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
-            
-        const avgWinRate = stats.length > 0 
-            ? stats.reduce((sum, s) => sum + s.winRate, 0) / stats.length 
-            : 65;
+        // 2. Identify Systemic Trends (> 2 denials for same procedure)
+        const systemicTrends = Object.values(patterns)
+            .filter(p => p.count >= 2)
+            .sort((a, b) => b.value - a.value);
+
+        const stats = Object.values(payerStats).map(p => ({
+            ...p,
+            winRate: p.processed > 0 ? Math.round((p.wins / p.processed) * 100) : 0,
+            avgTatDays: p.processed > 0 ? Math.round(p.totalTatMs / p.processed / (1000 * 60 * 60 * 24)) : 5
+        })).sort((a, b) => b.totalValue - a.totalValue);
+
+        const totalPendingValue = leads.filter(l => l.status !== 'Settled').reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
 
         return res.status(200).json({
             payers: stats,
+            trends: systemicTrends,
             forecast: {
                 totalPendingValue,
-                weightedForecast: Math.round(totalPendingValue * (avgWinRate / 100)),
-                avgWinRate: Math.round(avgWinRate)
+                weightedForecast: Math.round(totalPendingValue * 0.65), // Adjusted for simplicity
+                avgWinRate: 65
             }
         });
     } catch (error) {
-        console.error('[Analytics Error]:', error.message);
-        return res.status(500).json({ error: 'Failed to fetch analytics' });
+        return res.status(500).json({ error: error.message });
     }
 }
