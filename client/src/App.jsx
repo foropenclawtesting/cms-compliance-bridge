@@ -71,7 +71,8 @@ function App() {
     setLoading(false);
   };
 
-  const pendingDrafts = leads.filter(l => l.status === 'Drafted');
+  const pendingDrafts = leads.filter(l => l.status.includes('Drafted'));
+  const l2Escalations = leads.filter(l => l.status.includes('Level 2')).length;
   
   const totalRecoverable = leads
     .filter(l => l.status !== 'Settled')
@@ -80,10 +81,6 @@ function App() {
   const totalSettled = leads
     .filter(l => l.status === 'Settled')
     .reduce((sum, l) => sum + (parseFloat(l.recovered_amount) || 0), 0);
-
-  const recoveryRate = totalRecoverable > 0 
-    ? Math.round((totalSettled / (totalRecoverable + totalSettled)) * 100)
-    : 0;
 
   const bulkTransmit = async () => {
     if(!confirm(`Transmit all ${pendingDrafts.length} prepared appeals to their respective payers?`)) return;
@@ -110,9 +107,7 @@ function App() {
     return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
   };
 
-  const exportAudit = async () => {
-    window.open('/api/export-audit', '_blank');
-  };
+  const exportAudit = () => window.open('/api/export-audit', '_blank');
 
   return (
     <div className="dashboard">
@@ -192,7 +187,7 @@ function App() {
           </div>
           <div className="grid">
             {leads.map((lead, i) => (
-              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Drafted' ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
+              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status.includes('Drafted') ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
                 <div className="card-header">
                   <div className="title-group">
                     <h3>{lead.user}</h3>
@@ -204,7 +199,7 @@ function App() {
                   </div>
                   <div className="header-badges">
                     {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
-                    {lead.status === 'Drafted' && <span className="badge success">Auto-Drafted</span>}
+                    {lead.status.includes('Drafted') && <span className="badge success">Ready for Review</span>}
                     {lead.status === 'Submitted' && <span className={`badge info ${lead.submission_status === 'Failed' ? 'error' : ''}`}>
                       {lead.submission_status === 'Delivered' ? '✅ Fax Delivered' : (lead.submission_status === 'Failed' ? '❌ Fax Failed' : '📡 Transmitting...')}
                     </span>}
@@ -220,9 +215,9 @@ function App() {
                     onClick={() => generateAppeal(lead)} 
                     disabled={loading}
                   >
-                    { (lead.drafted_appeal || lead.edited_appeal) ? (lead.status === 'Submitted' ? 'View Submitted' : 'Review & Edit') : 'Draft CMS Appeal'}
+                    { (lead.drafted_appeal || lead.edited_appeal) ? (lead.status === 'Submitted' ? 'View Submission' : 'Review Appeal Package') : 'Draft CMS Appeal'}
                   </button>
-                  {lead.status === 'Drafted' && (
+                  {lead.status.includes('Drafted') && (
                     <button className="btn-submit" onClick={async () => {
                       if(!confirm(`Transmit this appeal to the regulatory department for ${lead.insurance_type}?`)) return;
                       setLoading(true);
@@ -231,11 +226,7 @@ function App() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ leadId: lead.id, insuranceName: lead.insurance_type })
                       });
-                      const data = await res.json();
-                      if(res.ok) {
-                        alert(`Appeal transmitted successfully to ${data.recipient} (${data.fax})`);
-                        fetchLeads();
-                      }
+                      if(res.ok) { alert("Appeal transmitted successfully!"); fetchLeads(); }
                       setLoading(false);
                     }} disabled={loading}>Transmit Appeal</button>
                   )}
@@ -263,18 +254,23 @@ function App() {
               <div className="modal-actions">
                 <button className="btn-save" onClick={saveEdit} disabled={loading}>Save Draft</button>
                 <button className="btn-download" onClick={async () => {
+                  const lead = leads.find(l => l.id === editingLeadId);
                   const res = await fetch('/api/generate-pdf', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ appealText: editingAppeal, claimId: editingLeadId })
+                    body: JSON.stringify({ 
+                        appealText: editingAppeal, 
+                        claimId: editingLeadId,
+                        clinicalResearch: lead?.clinical_evidence
+                    })
                   });
                   const blob = await res.blob();
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `Appeal_${editingLeadId}.pdf`;
+                  a.download = `Clinical_Package_${editingLeadId}.pdf`;
                   a.click();
-                }}>Download PDF</button>
+                }}>Download Clinical Package</button>
                 <button className="btn-secondary" onClick={() => {
                   setEditingAppeal(null);
                   setEditingLeadId(null);
