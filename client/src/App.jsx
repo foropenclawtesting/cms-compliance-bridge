@@ -164,7 +164,25 @@ function App() {
                 <h4>{trend.procedure}</h4>
                 <p>{trend.payer} has denied this {trend.count} times.</p>
                 <p className="trend-value">Potential Impact: ${trend.value.toLocaleString()}</p>
-                <button className="btn-escalate" onClick={() => alert("Drafting Group Appeal for CMS Escalation...")}>Escalate Group</button>
+                <button className="btn-escalate" onClick={async () => {
+                  setLoading(true);
+                  const res = await fetch('/api/generate-omnibus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure })
+                  });
+                  if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `OMNIBUS_NOTICE_${trend.payer.replace(/\s/g, '_')}.pdf`;
+                    a.click();
+                  }
+                  setLoading(false);
+                }} disabled={loading}>
+                  {loading ? 'Assembling...' : 'Generate Omnibus Appeal'}
+                </button>
               </div>
             )) : <p className="no-data">No systemic patterns detected yet.</p>}
           </div>
