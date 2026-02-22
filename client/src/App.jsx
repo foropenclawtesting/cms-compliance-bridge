@@ -261,6 +261,25 @@ function App() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
+                        type: 'BRIEF',
+                        claimId: editingLeadId,
+                        priority: lead?.priority,
+                        synthesis: lead?.clinical_synthesis
+                    })
+                  });
+                  const blob = await res.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Physician_Brief_${editingLeadId}.pdf`;
+                  a.click();
+                }}>Download P2P Brief</button>
+                <button className="btn-download" onClick={async () => {
+                  const lead = leads.find(l => l.id === editingLeadId);
+                  const res = await fetch('/api/generate-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
                         appealText: editingAppeal, 
                         claimId: editingLeadId,
                         clinicalResearch: lead?.clinical_evidence

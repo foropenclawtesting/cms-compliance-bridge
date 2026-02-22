@@ -27,7 +27,9 @@ export default async function handler(req, res) {
             recovered_amount: lead.recovered_amount,
             settled_at: lead.settled_at,
             submission_status: lead.submission_status,
-            clinical_evidence: lead.clinical_intel // Assuming a join or stored object
+            submission_log: lead.submission_log,
+            clinical_evidence: lead.clinical_intel,
+            clinical_synthesis: lead.clinical_synthesis
         }));
 
         return res.status(200).json(leads);
