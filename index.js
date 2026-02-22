@@ -12,6 +12,23 @@ app.get('/health', (req, res) => {
     res.json({ status: 'active', service: 'cms-compliance-bridge' });
 });
 
+const fs = require('fs');
+const path = require('path');
+
+// ... existing code ...
+
+const LEADS_PATH = '/Users/server/openclaw/data/leads.json';
+
+// Fetch current leads
+app.get('/leads', (req, res) => {
+    if (fs.existsSync(LEADS_PATH)) {
+        const leads = JSON.parse(fs.readFileSync(LEADS_PATH, 'utf8'));
+        res.json(leads);
+    } else {
+        res.status(404).json({ error: 'Leads file not found' });
+    }
+});
+
 // Trigger CMS API Polling
 app.post('/poll', async (req, res) => {
     try {
