@@ -2,58 +2,45 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import './App.css'
 
-// Initialize Supabase Client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 function App() {
   const [session, setSession] = useState(null);
+  const [activeTab, setActiveTab] = useState('leads');
   const [leads, setLeads] = useState([]);
+  const [analytics, setAnalytics] = useState({ payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+  const [rules, setRules] = useState([]);
   const [editingAppeal, setEditingAppeal] = useState(null);
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [analytics, setAnalytics] = useState({ payers: [], strategies: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
   
-  // Auth Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    // 1. Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (session) fetchLeads();
+    if (session) fetchData();
   }, [session]);
 
-  const [activeTab, setActiveTab] = useState('leads');
-  const [rules, setRules] = useState([]);
-
-  const fetchLeads = async () => {
+  const fetchData = async () => {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
-    
     try {
-        const [leadsRes, analyticsRes, rulesRes] = await Promise.all([
-            fetch('/api/leads', { headers }),
-            fetch('/api/analytics', { headers }),
-            fetch('/api/rules', { headers }) // New endpoint
+        const [l, a, r] = await Promise.all([
+            fetch('/api/leads', { headers }).then(res => res.json()),
+            fetch('/api/analytics', { headers }).then(res => res.json()),
+            fetch('/api/rules', { headers }).then(res => res.json())
         ]);
-        
-        setLeads(await leadsRes.json() || []);
-        setAnalytics(await analyticsRes.json() || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
-        setRules(await rulesRes.json() || []);
+        setLeads(l || []);
+        setAnalytics(a || { payers: [], trends: [], forecast: { weightedForecast: 0, avgWinRate: 0 } });
+        setRules(r || []);
     } catch (err) { console.error(err); }
   };
 
@@ -65,26 +52,28 @@ function App() {
     setLoading(false);
   };
 
-  const handleLogout = () => supabase.auth.signOut();
+  const saveRule = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const payload = {
+        payer_name: formData.get('payer'),
+        reason_code: formData.get('code'),
+        strategy: formData.get('strategy')
+    };
 
-  const saveEdit = async () => {
     setLoading(true);
-    try {
-        const res = await fetch('/api/save-draft', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-            },
-            body: JSON.stringify({ leadId: editingLeadId, appealText: editingAppeal })
-        });
-        if(res.ok) {
-            alert("Draft saved successfully.");
-            setEditingAppeal(null);
-            setEditingLeadId(null);
-            fetchLeads();
-        }
-    } catch (e) { console.error(e); }
+    const res = await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(payload)
+    });
+    if(res.ok) {
+        alert("Payer Rule updated.");
+        fetchData();
+    }
     setLoading(false);
   };
 
@@ -94,277 +83,148 @@ function App() {
       setEditingLeadId(lead.id);
       return;
     }
-
     setLoading(true);
-    try {
-      const res = await fetch('/api/generate-appeal', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          payerId: lead.insurance_type,
-          claimId: `AUTO-${lead.id}`,
-          reason: lead.pain_point,
-          timestamp: new Date().toISOString()
-        })
-      });
-      const data = await res.json();
-      setEditingAppeal(data.appeal);
-      setEditingLeadId(lead.id);
-    } catch (err) {
-      console.error("Appeal generation failed", err);
-    }
+    const res = await fetch('/api/generate-appeal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ leadId: lead.id })
+    });
+    const data = await res.json();
+    setEditingAppeal(data.appeal);
+    setEditingLeadId(lead.id);
     setLoading(false);
   };
 
   const calculateTimeLeft = (dueDate) => {
     if (!dueDate) return null;
-    const difference = +new Date(dueDate) - +new Date();
-    if (difference <= 0) return "EXPIRED";
-    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-    const mins = Math.floor((difference / 1000 / 60) % 60);
-    return days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
+    const diff = +new Date(dueDate) - +new Date();
+    if (diff <= 0) return "EXPIRED";
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    return d > 0 ? `${d}d ${h}h` : `${h}h remaining`;
   };
 
-  const exportAudit = () => window.open('/api/export-audit', '_blank');
-
-  // --- RENDER LOGIN SCREEN ---
   if (!session) {
     return (
       <div className="login-screen">
         <div className="login-card">
           <h1>⚡ CMS Bridge</h1>
-          <p>Secure Healthcare Compliance Gateway</p>
           <form onSubmit={handleLogin}>
             <input type="email" placeholder="Physician Email" value={email} onChange={e => setEmail(e.target.value)} required />
             <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
-            <button type="submit" disabled={loading}>{loading ? 'Verifying...' : 'Sign In to Dashboard'}</button>
+            <button type="submit" disabled={loading}>Sign In</button>
           </form>
-          <p className="hint">Access restricted to authorized clinical staff.</p>
         </div>
       </div>
     );
   }
 
-  // --- RENDER DASHBOARD ---
-  const pendingDrafts = leads.filter(l => l.status && l.status.includes('Drafted'));
-  const totalRecoverable = leads.filter(l => l.status !== 'Settled').reduce((sum, l) => sum + (parseFloat(l.estimated_value) || 0), 0);
-  const totalSettled = leads.filter(l => l.status === 'Settled').reduce((sum, l) => sum + (parseFloat(l.recovered_amount) || 0), 0);
-
   return (
     <div className="dashboard">
       <header>
         <div className="header-top">
-          <div className="user-info">
-            <span className="status-badge">Live Cloud Sync</span>
-            <span className="user-email">{session.user.email}</span>
-          </div>
-          <div className="header-actions">
-            <button className="btn-audit" onClick={exportAudit}>📥 Audit Export</button>
-            <button className="btn-logout" onClick={handleLogout}>Logout</button>
-          </div>
+            <div className="user-pill">{session.user.email}</div>
+            <div className="nav-tabs">
+                <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
+                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Analytics</button>
+                <button className={activeTab === 'rules' ? 'active' : ''} onClick={() => setActiveTab('rules')}>Rules Engine</button>
+            </div>
+            <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
         <h1>⚡ CMS Compliance Bridge</h1>
         <div className="stats-bar">
-          <div className="stat">
-            <span className="label">Potential Recovery</span>
-            <span className="value">${totalRecoverable.toLocaleString()}</span>
-          </div>
-          <div className="stat">
-            <span className="label">Forecasted Win</span>
-            <span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span>
-          </div>
-          <div className="stat">
-            <span className="label">Recovered Revenue</span>
-            <span className="value success">${totalSettled.toLocaleString()}</span>
-          </div>
-          <div className="stat">
-            <span className="label">System Win Rate</span>
-            <span className="value success">{analytics.forecast.avgWinRate}%</span>
-          </div>
+          <div className="stat"><span className="label">Recoverable</span><span className="value">${analytics.forecast.totalPendingValue.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Forecasted</span><span className="value info">${analytics.forecast.weightedForecast.toLocaleString()}</span></div>
+          <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
       </header>
 
       <main>
-        <section className="analytics-section">
-          <h2>Systemic Denial Patterns</h2>
-          <div className="trends-grid">
-            {analytics.trends.length > 0 ? analytics.trends.map((trend, i) => (
-              <div key={i} className="trend-card">
-                <span className="trend-badge">⚠️ SYSTEMIC TREND</span>
-                <h4>{trend.procedure}</h4>
-                <p>{trend.payer} has denied this {trend.count} times.</p>
-                <p className="trend-value">Impact: ${trend.value.toLocaleString()}</p>
-                <button className="btn-escalate" onClick={async () => {
-                  setLoading(true);
-                  const res = await fetch('/api/generate-omnibus', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`
-                    },
-                    body: JSON.stringify({ payer: trend.payer, procedure: trend.procedure })
-                  });
-                  if (res.ok) {
-                    const blob = await res.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `OMNIBUS_NOTICE_${trend.payer.replace(/\s/g, '_')}.pdf`;
-                    a.click();
-                  }
-                  setLoading(false);
-                }}>Generate Omnibus Appeal</button>
-              </div>
-            )) : <p className="no-data">No systemic patterns detected yet.</p>}
-          </div>
-
-          <h2 style={{marginTop: '3rem'}}>Strategy Effectiveness</h2>
-          <div className="strategy-grid">
-            {analytics.strategies.map((strat, i) => (
-              <div key={i} className="strat-card">
-                <span className="strat-label">{strat.name.replace(/_/g, ' ')}</span>
-                <span className="strat-value">{strat.winRate}% Win Rate</span>
-                <div className="strat-bar-bg"><div className="strat-bar-fg" style={{width: `${strat.winRate}%`}}></div></div>
-              </div>
-            ))}
-          </div>
-
-          <h2 style={{marginTop: '3rem'}}>Payer Performance Analytics</h2>
-          <table className="analytics-table">
-            <thead>
-              <tr>
-                <th>Payer Name</th>
-                <th>Denials</th>
-                <th>Potential Revenue</th>
-                <th>Win Rate</th>
-                <th>Avg. TAT</th>
-                <th>Recovered</th>
-              </tr>
-            </thead>
-            <tbody>
-              {analytics.payers.map((stat, i) => (
-                <tr key={i}>
-                  <td><strong>{stat.name}</strong></td>
-                  <td>{stat.count}</td>
-                  <td>${stat.totalValue.toLocaleString()}</td>
-                  <td><span className="win-rate-pill">{stat.winRate}%</span></td>
-                  <td>{stat.avgTatDays} days</td>
-                  <td className="success"><strong>${parseFloat(stat.wins * (stat.totalValue / (stat.count || 1))).toLocaleString()}</strong></td>
-                </tr>
+        {activeTab === 'leads' && (
+          <section className="leads-list">
+            <div className="grid">
+              {leads.map((lead, i) => (
+                <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
+                  <div className="card-header">
+                    <div className="title-group">
+                      <h3>{lead.user}</h3>
+                      {lead.due_at && <span className="deadline">⌛ {calculateTimeLeft(lead.due_at)}</span>}
+                    </div>
+                    <div className="header-badges">
+                      <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>
+                      <span className={`badge ${lead.status === 'Settled' ? 'success' : 'info'}`}>{lead.status}</span>
+                    </div>
+                  </div>
+                  <p className="pain-point">{lead.pain_point}</p>
+                  <div className="card-actions">
+                    <button className="btn-view" onClick={() => generateAppeal(lead)}>Review Package</button>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </section>
+            </div>
+          </section>
+        )}
 
-        <section className="leads-list">
-          <div className="section-header">
-            <h2>Active Denial Leads</h2>
-            <button className="refresh-btn" onClick={fetchLeads}>↻ Refresh</button>
-          </div>
-          <div className="grid">
-            {leads.map((lead, i) => (
-              <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status && lead.status.includes('Drafted') ? 'drafted' : ''} ${lead.status === 'Submitted' ? 'submitted' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
-                <div className="card-header">
-                  <div className="title-group">
-                    <h3>{lead.user}</h3>
-                    {lead.due_at && (
-                      <span className={`deadline ${calculateTimeLeft(lead.due_at).includes('h') && !calculateTimeLeft(lead.due_at).includes('d') ? 'urgent' : ''}`}>
-                        ⌛ {calculateTimeLeft(lead.due_at)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="header-badges">
-                    {lead.estimated_value > 0 && <span className="value-tag">${parseFloat(lead.estimated_value).toLocaleString()}</span>}
-                    {lead.status && lead.status.includes('Drafted') && <span className="badge success">Ready for Review</span>}
-                    {lead.status === 'Submitted' && <span className={`badge info ${lead.submission_status === 'Failed' ? 'error' : ''}`}>
-                      {lead.submission_status === 'Delivered' ? '✅ Fax Delivered' : (lead.submission_status === 'Failed' ? '❌ Fax Failed' : '📡 Transmitting...')}
-                    </span>}
-                    {lead.status === 'Settled' && <span className="badge success">Settled</span>}
-                  </div>
+        {activeTab === 'analytics' && (
+          <section className="analytics-section">
+            <h2>Systemic Denial Trends</h2>
+            <div className="trends-grid">
+              {analytics.trends.map((t, i) => (
+                <div key={i} className="trend-card">
+                  <span className="trend-badge">TREND</span>
+                  <h4>{t.procedure}</h4>
+                  <p>{t.payer} denial pattern detected ({t.count}x)</p>
+                  <strong>Impact: ${t.value.toLocaleString()}</strong>
                 </div>
-                <p><strong>Payer:</strong> {lead.insurance_type}</p>
-                <p className="pain-point">{lead.pain_point}</p>
-                
-                <div className="card-actions">
-                  <button className={(lead.drafted_appeal || lead.edited_appeal) ? 'btn-view' : 'btn-generate'} onClick={() => generateAppeal(lead)} disabled={loading}>
-                    { (lead.drafted_appeal || lead.edited_appeal) ? (lead.status === 'Submitted' ? 'View Submission' : 'Review Package') : 'Draft CMS Appeal'}
-                  </button>
-                  {lead.status && lead.status.includes('Drafted') && (
-                    <button className="btn-submit" onClick={async () => {
-                      if(!confirm(`Transmit this appeal?`)) return;
-                      setLoading(true);
-                      const res = await fetch('/api/submit-appeal', {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${session.access_token}`
-                        },
-                        body: JSON.stringify({ leadId: lead.id, insuranceName: lead.insurance_type })
-                      });
-                      if(res.ok) fetchLeads();
-                      setLoading(false);
-                    }} disabled={loading}>Transmit Appeal</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+            <h2 style={{marginTop: '3rem'}}>Payer Performance</h2>
+            <table className="analytics-table">
+                <thead><tr><th>Payer</th><th>Win Rate</th><th>Avg. TAT</th><th>Recovered</th></tr></thead>
+                <tbody>{analytics.payers.map((p, i) => (
+                    <tr key={i}><td>{p.name}</td><td>{p.winRate}%</td><td>{p.avgTatDays}d</td><td className="success">${(p.wins * (p.totalValue/p.count)).toLocaleString()}</td></tr>
+                ))}</tbody>
+            </table>
+          </section>
+        )}
 
-        {editingAppeal && (
-          <section className="appeal-preview">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h2>Review & Refine Appeal</h2>
-                <span className="lead-ref">Lead ID: {editingLeadId}</span>
-              </div>
-              <textarea className="appeal-editor" value={editingAppeal} onChange={(e) => setEditingAppeal(e.target.value)} rows={20} />
-              <div className="modal-actions">
-                <button className="btn-save" onClick={saveEdit} disabled={loading}>Save Draft</button>
-                <button className="btn-download" onClick={async () => {
-                  const lead = leads.find(l => l.id === editingLeadId);
-                  const res = await fetch('/api/generate-pdf', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`
-                    },
-                    body: JSON.stringify({ type: 'BRIEF', claimId: editingLeadId, priority: lead?.priority, synthesis: lead?.clinical_synthesis })
-                  });
-                  const blob = await res.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `Physician_Brief_${editingLeadId}.pdf`;
-                  a.click();
-                }}>Download P2P Brief</button>
-                <button className="btn-download" onClick={async () => {
-                  const lead = leads.find(l => l.id === editingLeadId);
-                  const res = await fetch('/api/generate-pdf', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`
-                    },
-                    body: JSON.stringify({ appealText: editingAppeal, claimId: editingLeadId, clinicalResearch: lead?.clinical_evidence })
-                  });
-                  const blob = await res.blob();
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `Appeal_Package_${editingLeadId}.pdf`;
-                  a.click();
-                }}>Download Package</button>
-                <button className="btn-secondary" onClick={() => { setEditingAppeal(null); setEditingLeadId(null); }}>Close</button>
-              </div>
+        {activeTab === 'rules' && (
+          <section className="rules-section">
+            <h2>Programmable Strategy Engine</h2>
+            <div className="rules-container">
+                <form className="add-rule-form" onSubmit={saveRule}>
+                    <input name="payer" placeholder="Payer (e.g. Cigna or *)" required />
+                    <input name="code" placeholder="Reason Code" required />
+                    <select name="strategy">
+                        <option value="CLINICAL_PEER_REVIEW">Clinical Peer Review</option>
+                        <option value="REGULATORY_TIMING_STRIKE">Regulatory Timing Strike</option>
+                        <option value="TREATMENT_FAILURE_LOG">Treatment Failure Log</option>
+                        <option value="NPI_VERIFICATION_AUDIT">NPI Verification Audit</option>
+                    </select>
+                    <button type="submit" disabled={loading}>Add Rule</button>
+                </form>
+                <table className="rules-table">
+                    <thead><tr><th>Payer</th><th>Code</th><th>Applied Strategy</th></tr></thead>
+                    <tbody>{rules.map((r, i) => (
+                        <tr key={i}><td>{r.payer_name}</td><td><code>{r.reason_code}</code></td><td>{r.strategy.replace(/_/g, ' ')}</td></tr>
+                    ))}</tbody>
+                </table>
             </div>
           </section>
         )}
       </main>
+
+      {editingAppeal && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <div className="modal-header"><h2>Refine Appeal</h2><span>Lead: {editingLeadId}</span></div>
+            <textarea className="appeal-editor" value={editingAppeal} onChange={(e) => setEditingAppeal(e.target.value)} rows={20} />
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setEditingAppeal(null)}>Close</button>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
