@@ -180,7 +180,6 @@ function App() {
           <div className="stat"><span className="label">Recovered</span><span className="value success">${totalRecovered.toLocaleString()}</span></div>
           <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
-      </header>
 
       <main>
         {activeTab === 'leads' && (
