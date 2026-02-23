@@ -231,6 +231,8 @@ function App() {
                 </div>
               ))}
             </div>
+                </div>
+            </div>
           </section>
         )}
       </main>
