@@ -17,6 +17,8 @@ function App() {
   const [payerRules, setPayerRules] = useState([]);
   const [heatmap, setHeatmap] = useState([]);
   const [portals, setPortals] = useState([]);
+  const [identities, setIdentities] = useState([]);
+  const [editingIdentity, setEditingIdentity] = useState(null);
   const [preAuthData, setPreAuthData] = useState({ payer: '', procedure: '', evidence: '' });
   const [preAuthResult, setPreAuthResult] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
@@ -49,14 +51,15 @@ function App() {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, h, c, map, r, p] = await Promise.all([
+        const [l, a, h, c, map, r, p, i] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
             fetch('/api/health').then(res => res.json()),
             fetch('/api/compliance-log', { headers }).then(res => res.json()),
             fetch('/api/victory-heatmap', { headers }).then(res => res.json()),
             fetch('/api/rules', { headers }).then(res => res.json()),
-            fetch('/api/portal-registry', { headers }).then(res => res.json())
+            fetch('/api/portal-registry', { headers }).then(res => res.json()),
+            fetch('/api/identity', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
@@ -65,10 +68,24 @@ function App() {
         setHeatmap(Array.isArray(map) ? map : []);
         setPayerRules(Array.isArray(r) ? r : []);
         setPortals(Array.isArray(p) ? p : []);
+        setIdentities(Array.isArray(i) ? i : []);
 
         const { data: intel } = await supabase.from('clinical_intel').select('*');
         setIntelLibrary(intel || []);
     } catch (err) { console.error('Sync Error:', err); }
+  };
+
+  const saveIdentity = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await fetch('/api/identity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(editingIdentity)
+    });
+    setEditingIdentity(null);
+    fetchData();
+    setLoading(false);
   };
 
   const handleLogin = async (e) => {
@@ -201,7 +218,7 @@ function App() {
                 <span>FHIR: Active</span>
             </div>
             <div className="nav-tabs">
-                {['leads', 'analytics', 'prevention', 'intel', 'strategy', 'portals', 'compliance', 'system'].map(tab => (
+                {['leads', 'analytics', 'prevention', 'intel', 'strategy', 'portals', 'identity', 'compliance', 'system'].map(tab => (
                     <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
@@ -380,6 +397,25 @@ function App() {
             </section>
         )}
 
+        {activeTab === 'identity' && (
+            <section className="identity-section">
+                <div className="section-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                    <h2>Clinical Identity Manager</h2>
+                    <button className="btn-primary" onClick={() => setEditingIdentity({ physician_name: '', npi: '', title: '', signature_data: '' })}>Register Physician</button>
+                </div>
+                <div className="grid">
+                    {identities.map((id, i) => (
+                        <div key={i} className="card">
+                            <h3>{id.physician_name}</h3>
+                            <span className="badge info">NPI: {id.npi}</span>
+                            <p className="pain-point" style={{marginTop: '1rem'}}>{id.title}</p>
+                            <button className="status-link" onClick={() => setEditingIdentity(id)}>Update Credentials</button>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
         {activeTab === 'compliance' && (
             <section className="compliance-section">
                 <h2>Regulatory Audit Log</h2>
@@ -492,10 +528,36 @@ function App() {
       {editingRule && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <h2>Clinical Preference</h2>
-            <div className="modal-actions">
-                <button className="btn-secondary" onClick={() => setEditingRule(null)}>Close</button>
-            </div>
+            <h2>{editingRule.id ? 'Edit' : 'Create'} Clinical Preference</h2>
+            <form onSubmit={async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                await fetch('/api/rules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify(editingRule)
+                });
+                setEditingRule(null);
+                fetchData();
+                setLoading(false);
+            }}>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Payer Name</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingRule.payer_name} onChange={e => setEditingRule({...editingRule, payer_name: e.target.value})} required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">Reason Code</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingRule.reason_code} onChange={e => setEditingRule({...editingRule, reason_code: e.target.value})} required />
+                    </div>
+                </div>
+                <label className="label">Mandatory Defense Strategy / Citations</label>
+                <textarea className="appeal-editor" value={editingRule.strategy} onChange={e => setEditingRule({...editingRule, strategy: e.target.value})} rows={5} required />
+                <div className="modal-actions">
+                    <button type="button" className="btn-secondary" onClick={() => setEditingRule(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary">Save Strategy</button>
+                </div>
+            </form>
           </div>
         </section>
       )}
@@ -503,10 +565,72 @@ function App() {
       {editingPortal && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <h2>Payer Portal Credentials</h2>
-            <div className="modal-actions">
-                <button className="btn-secondary" onClick={() => setEditingPortal(null)}>Close</button>
-            </div>
+            <h2>{editingPortal.id ? 'Edit' : 'Register'} Payer Portal</h2>
+            <form onSubmit={async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                await fetch('/api/portal-registry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                    body: JSON.stringify(editingPortal)
+                });
+                setEditingPortal(null);
+                fetchData();
+                setLoading(false);
+            }}>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Payer / Portal Name</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.payer_name} onChange={e => setEditingPortal({...editingPortal, payer_name: e.target.value})} placeholder="e.g. UHC Availity" required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">Portal URL</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.portal_url} onChange={e => setEditingPortal({...editingPortal, portal_url: e.target.value})} placeholder="https://..." required />
+                    </div>
+                </div>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Username</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.username} onChange={e => setEditingPortal({...editingPortal, username: e.target.value})} required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">Password</label>
+                        <input className="appeal-editor" type="password" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.password} onChange={e => setEditingPortal({...editingPortal, password: e.target.value})} required />
+                    </div>
+                </div>
+                <div className="modal-actions">
+                    <button type="button" className="btn-secondary" onClick={() => setEditingPortal(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary">Register Portal</button>
+                </div>
+            </form>
+          </div>
+        </section>
+      )}
+
+      {editingIdentity && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <h2>{editingIdentity.id ? 'Edit' : 'Register'} Clinical Identity</h2>
+            <form onSubmit={saveIdentity}>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Physician Name</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingIdentity.physician_name} onChange={e => setEditingIdentity({...editingIdentity, physician_name: e.target.value})} required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">NPI Number</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingIdentity.npi} onChange={e => setEditingIdentity({...editingIdentity, npi: e.target.value})} required />
+                    </div>
+                </div>
+                <label className="label">Official Title</label>
+                <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingIdentity.title} onChange={e => setEditingIdentity({...editingIdentity, title: e.target.value})} placeholder="e.g. Chief of Oncology" required />
+                <label className="label">E-Signature Data (Base64)</label>
+                <textarea className="appeal-editor" value={editingIdentity.signature_data} onChange={e => setEditingIdentity({...editingIdentity, signature_data: e.target.value})} rows={3} placeholder="Paste base64 signature image..." />
+                <div className="modal-actions">
+                    <button type="button" className="btn-secondary" onClick={() => setEditingIdentity(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary">Save Identity</button>
+                </div>
+            </form>
           </div>
         </section>
       )}
