@@ -22,11 +22,11 @@ function App() {
   const [editingLead, setEditingLead] = useState(null);
   const [editingRule, setEditingRule] = useState(null);
   const [editingPortal, setEditingPortal] = useState(null);
+  const [warRoomChat, setWarRoomChat] = useState(null);
+  const [chatInput, setChatInput] = useState('');
   const [editedText, setEditedText] = useState('');
   const [negotiation, setNegotiation] = useState(null);
   const [discoveryView, setDiscoveryView] = useState(null);
-  const [warRoomChat, setWarRoomChat] = useState(null);
-  const [chatInput, setChatInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -242,6 +242,17 @@ function App() {
                             </div>
                         ))}
                     </div>
+
+                    <h2 style={{marginTop: '3rem'}}>Regulatory Scorecard (CMS-0057-F Compliance)</h2>
+                    <div className="grid">
+                        {analytics.payers.map((p, i) => (
+                            <div key={i} className="stat" style={{textAlign: 'left'}}>
+                                <span className="label">{p.name}</span>
+                                <div className="val" style={{color: p.compliance_score > 90 ? '#38a169' : '#e53e3e'}}>{p.avg_response_hours}h Resp</div>
+                                <div className="meter-bg" style={{marginTop: '0.5rem'}}><div className="meter-fill" style={{width: `${p.compliance_score}%`, background: p.compliance_score > 90 ? '#38a169' : '#e53e3e'}}></div></div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <div className="side-analytics">
                     <h2>Network Benchmarks</h2>
@@ -252,7 +263,7 @@ function App() {
                     </div>
                     <h2>Systemic Patterns</h2>
                     {analytics.trends.map((t, i) => (
-                        <div key={i} className="rc-card">
+                        <div key={i} className="rc-card" style={{marginBottom: '1rem'}}>
                             <strong>{t.procedure}</strong>
                             <p>{t.payer}: {t.count} denials</p>
                         </div>
@@ -342,7 +353,7 @@ function App() {
                     {portals.map((portal, i) => (
                         <div key={i} className="card">
                             <h3>{portal.payer_name}</h3>
-                            <span className="badge success">PORTAL DETECTED</span>
+                            <span className="badge success">PORTAL MONITORING: ACTIVE</span>
                             <button className="status-link" onClick={() => setEditingPortal(portal)}>Edit Credentials</button>
                         </div>
                     ))}
@@ -383,15 +394,48 @@ function App() {
           <div className="modal-content">
             <div className="modal-header">
                 <h2>Case Review: {editingLead.username}</h2>
-                <button className="btn-escalate" onClick={() => runNegotiationSim(editingLead)}>Negotiation Sim</button>
+                <div style={{display: 'flex', gap: '0.5rem'}}>
+                    <button className="btn-escalate" onClick={() => setWarRoomChat({ messages: [{ role: 'Payer', text: `Dr. Smith, this is ${editingLead.insurance_type}. We reviewed your request for ${editingLead.title}. Why shouldn't we require Step Therapy first?` }] })}>P2P War Room</button>
+                    <button className="btn-escalate" style={{background: '#805ad5'}} onClick={() => runNegotiationSim(editingLead)}>Negotiation Sim</button>
+                </div>
             </div>
             <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={15} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Close</button>
-              <button className="btn-escalate" onClick={() => setWarRoomChat({ messages: [{ role: 'Payer', text: 'Dr. Smith, this is the Medical Director. We have reviewed your request for immunotherapy. Our policy requires Step Therapy first. Why should we approve this?' }] })}>Enter War Room</button>
               <button className="btn-secondary" onClick={() => triggerAdvocacy(editingLead.id)}>Patient Advocacy</button>
               <button className="btn-secondary" onClick={() => launchDiscovery(editingLead.id)}>Discovery Demand</button>
               <button className="btn-primary" onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {warRoomChat && (
+        <section className="appeal-preview">
+          <div className="modal-content" style={{ borderTop: '8px solid #c53030' }}>
+            <div className="modal-header">
+                <h2>P2P War Room: Clinical Combat Simulation</h2>
+                <span className="badge priority">SIMULATION ACTIVE</span>
+            </div>
+            <div className="rc-card" style={{ height: '350px', overflowY: 'auto', background: '#f7fafc', padding: '1rem', marginTop: '1.5rem' }}>
+                {warRoomChat.messages.map((m, i) => (
+                    <div key={i} style={{ marginBottom: '1rem', textAlign: m.role === 'Physician' ? 'right' : 'left' }}>
+                        <strong style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: m.role === 'Physician' ? '#3182ce' : '#c53030' }}>{m.role}</strong>
+                        <p style={{ background: m.role === 'Physician' ? '#ebf8ff' : '#fff5f5', padding: '0.75rem', borderRadius: '8px', display: 'inline-block', maxWidth: '80%', marginTop: '0.25rem' }}>{m.text}</p>
+                        {m.tip && (
+                            <div style={{ background: '#feebc8', color: '#7b341e', fontSize: '0.8rem', padding: '0.5rem', borderRadius: '4px', marginTop: '0.5rem', textAlign: 'left' }}>
+                                💡 <b>COUNTER-MOVE:</b> {m.tip}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+            <form onSubmit={sendWarRoomMessage} style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <input className="appeal-editor" style={{ height: '45px', margin: 0 }} placeholder="Practice your clinical defense..." value={chatInput} onChange={e => setChatInput(e.target.value)} required />
+                <button className="btn-primary" type="submit" disabled={loading}>Speak</button>
+            </form>
+            <div className="modal-actions" style={{ marginTop: '1rem' }}>
+                <button className="btn-secondary" onClick={() => setWarRoomChat(null)}>Exit War Room</button>
             </div>
           </div>
         </section>
@@ -422,6 +466,28 @@ function App() {
             <h2>Discovery Demand</h2>
             <pre className="appeal-editor" style={{ background: '#1a202c', color: '#cbd5e0' }}>{discoveryView}</pre>
             <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close</button>
+          </div>
+        </section>
+      )}
+
+      {editingRule && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <h2>Clinical Preference</h2>
+            <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => setEditingRule(null)}>Close</button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {editingPortal && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <h2>Payer Portal Credentials</h2>
+            <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => setEditingPortal(null)}>Close</button>
+            </div>
           </div>
         </section>
       )}
