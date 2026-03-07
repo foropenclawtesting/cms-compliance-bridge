@@ -172,6 +172,20 @@ function App() {
   const totalRecovered = leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0);
   const violationCount = leads.filter(l => l.status === 'Discovery Phase' || l.status === 'CMS Escalated' || l.status === 'Escalated').length;
 
+  const postToEHR = async (leadId, amount) => {
+    setLoading(true);
+    const res = await fetch('/api/writeback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId, amount })
+    });
+    if (res.ok) {
+        alert("Revenue Posted to Billing System.");
+        fetchData();
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="dashboard">
       <header>
@@ -217,10 +231,15 @@ function App() {
                   <p className="pain-point">{lead.pain_point}</p>
                   <div className="card-footer">
                     <span className="badge info">{lead.status}</span>
-                    <button className="btn-view" onClick={() => {
-                        setEditingLead(lead);
-                        setEditedText(lead.edited_appeal || lead.drafted_appeal || '');
-                    }}>Review Case</button>
+                    <div style={{display: 'flex', gap: '0.5rem'}}>
+                        {lead.status === 'Settled' && !lead.submission_log?.includes('Revenue posted') && (
+                            <button className="btn-view" style={{background: '#38a169', color: 'white'}} onClick={(e) => { e.stopPropagation(); postToEHR(lead.id, lead.recovered_amount); }}>Post Revenue</button>
+                        )}
+                        <button className="btn-view" onClick={() => {
+                            setEditingLead(lead);
+                            setEditedText(lead.edited_appeal || lead.drafted_appeal || '');
+                        }}>Review Case</button>
+                    </div>
                   </div>
                 </div>
               ))}
