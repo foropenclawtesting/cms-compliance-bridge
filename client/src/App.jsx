@@ -19,6 +19,7 @@ function App() {
   const [portals, setPortals] = useState([]);
   const [identities, setIdentities] = useState([]);
   const [editingIdentity, setEditingIdentity] = useState(null);
+  const [marketBench, setMarketBench] = useState({ globalWinRate: 84.2, topPayer: 'Aetna', bottomPayer: 'Cigna' });
   const [preAuthData, setPreAuthData] = useState({ payer: '', procedure: '', evidence: '' });
   const [preAuthResult, setPreAuthResult] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
@@ -294,8 +295,12 @@ function App() {
                     <h2>Network Benchmarks</h2>
                     <div className="rc-card" style={{borderLeft: '4px solid #3182ce', marginBottom: '1.5rem'}}>
                         <span className="label">Network Avg Win Rate</span>
-                        <div className="val" style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#3182ce'}}>84.2%</div>
-                        <p className="form-note">Your hospital is <b>+{ (analytics.forecast.avgWinRate - 84.2).toFixed(1) }%</b> above market average.</p>
+                        <div className="val" style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#3182ce'}}>{marketBench.globalWinRate}%</div>
+                        <p className="form-note">Your hospital is <b>+{ (analytics.forecast.avgWinRate - marketBench.globalWinRate).toFixed(1) }%</b> above market average.</p>
+                    </div>
+                    <div className="rc-card" style={{marginBottom: '1.5rem', background: '#ebf8ff'}}>
+                        <span className="label" style={{color: '#2b6cb0'}}>HIVE MIND ALERT</span>
+                        <p className="form-note" style={{marginTop: '0.5rem'}}>New winning strategy detected for <b>{marketBench.bottomPayer}</b>. Updated in Strategy tab.</p>
                     </div>
                     <h2>Systemic Patterns</h2>
                     {analytics.trends.map((t, i) => (
