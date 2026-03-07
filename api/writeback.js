@@ -1,27 +1,28 @@
-const supabase = require('./services/supabaseClient');
+const { postRecoveryToEHR } = require('./services/writeback-tunnel');
 const { verifyUser } = require('./services/auth');
+
+/**
+ * EHR Writeback Gateway v1.0
+ * Entry point for posting recovered revenue to external billing systems.
+ */
 
 export default async function handler(req, res) {
     const user = await verifyUser(req, res);
     if (!user) return;
 
-    const { leadId, outcome } = req.body;
-
-    console.log(`[EHR Writeback] Syncing final adjudication for lead ${leadId} to Billing System...`);
+    const { leadId, amount } = req.body;
 
     try {
-        // Simulate an external API call to the hospital's Epic/Cerner Billing module
-        // In production, this would use a secure HL7 or FHIR write operation
-        const syncStatus = outcome === 'Approved' ? 'REVENUE_POSTED' : 'CLAIM_VOIDED';
+        console.log(`[Writeback API] Triggering financial reconciliation for Lead ${leadId}...`);
+        
+        const result = await postRecoveryToEHR(leadId, amount);
 
-        const { error } = await supabase
-            .from('healthcare_denial_leads')
-            .update({ submission_log: `EHR Sync Complete: ${syncStatus}` })
-            .eq('id', leadId);
+        return res.status(200).json({
+            status: 'Success',
+            transactionId: result.transactionId,
+            postedAmount: amount
+        });
 
-        if (error) throw error;
-
-        return res.status(200).json({ success: true, status: syncStatus });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }

@@ -12,21 +12,14 @@ function App() {
   const [health, setHealth] = useState({ status: 'Checking...', checks: { database: '...', fhir_gateway: '...', fax_gateway: '...', schema: '...' } });
   const [leads, setLeads] = useState([]);
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
-  const [velocity, setVelocity] = useState([]);
-  const [directory, setDirectory] = useState([]);
   const [intelLibrary, setIntelLibrary] = useState([]);
   const [complianceLog, setComplianceLog] = useState([]);
+  const [heatmap, setHeatmap] = useState([]);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
-  const [p2pBrief, setP2pBrief] = useState(null);
-  const [complaintView, setComplaintView] = useState(null);
-  const [discoveryView, setDiscoveryView] = useState(null);
   const [negotiation, setNegotiation] = useState(null);
-  const [networkIntel, setNetworkIntel] = useState(null);
-  const [selectedLeads, setSelectedLeads] = useState([]);
+  const [discoveryView, setDiscoveryView] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [simChat, setSimChat] = useState([]);
-  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -36,18 +29,9 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const [heatmap, setHeatmap] = useState([]);
-
-  const fetchHeatmap = async () => {
-    const res = await fetch('/api/victory-heatmap', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
-    const data = await res.json();
-    setHeatmap(Array.isArray(data) ? data : []);
-  };
-
   useEffect(() => {
     if (session) {
         fetchData();
-        fetchHeatmap();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
@@ -57,24 +41,22 @@ function App() {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, v, d, h, c] = await Promise.all([
+        const [l, a, h, c, map] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
-            fetch('/api/velocity', { headers }).then(res => res.json()),
-            fetch('/api/directory', { headers }).then(res => res.json()),
             fetch('/api/health').then(res => res.json()),
-            fetch('/api/compliance-log', { headers }).then(res => res.json())
+            fetch('/api/compliance-log', { headers }).then(res => res.json()),
+            fetch('/api/victory-heatmap', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
-        setVelocity(v || []);
-        setDirectory(d || []);
         setHealth(h);
         setComplianceLog(Array.isArray(c) ? c : []);
+        setHeatmap(Array.isArray(map) ? map : []);
 
         const { data: intel } = await supabase.from('clinical_intel').select('*');
         setIntelLibrary(intel || []);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error('Sync Error:', err); }
   };
 
   const handleLogin = async (e) => {
@@ -146,30 +128,28 @@ function App() {
   }
 
   const totalRecovered = leads.filter(l => l.status === 'Settled').reduce((s, l) => s + (parseFloat(l.recovered_amount) || 0), 0);
-  const violationCount = leads.filter(l => l.status === 'Discovery Phase' || l.status === 'CMS Escalated').length;
+  const violationCount = leads.filter(l => l.status === 'Discovery Phase' || l.status === 'CMS Escalated' || l.status === 'Escalated').length;
 
   return (
     <div className="dashboard">
-      {violationCount > 0 && (
-        <div className="setup-banner" style={{ background: '#fff5f5', border: '1px solid #feb2b2', color: '#c53030', marginBottom: '2rem' }}>
-            <span className="icon">🚨</span>
-            <div className="banner-content">
-                <strong>Enforcement Protocol Active:</strong> {violationCount} claims are currently in discovery or escalation phase. Monitor the Compliance tab for stonewalling detection.
+      <header>
+        {violationCount > 0 && (
+            <div className="setup-banner">
+                <strong>🚨 Enforcement Active:</strong> {violationCount} claims are currently in discovery or escalation phase.
             </div>
-        </div>
-      )}
+        )}
         <div className="header-top">
             <div className="system-status">
                 <span className={`status-dot ${health.checks.database === 'Connected' ? 'green' : 'red'}`}></span> 
-                <button className="status-link">FHIR: Active</button>
-                <button className="status-link">GATEWAY: Live</button>
+                <span>DB: {health.checks.database}</span>
+                <span>FHIR: Active</span>
             </div>
             <div className="nav-tabs">
-                <button className={activeTab === 'leads' ? 'active' : ''} onClick={() => setActiveTab('leads')}>Denials</button>
-                <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Intelligence</button>
-                <button className={activeTab === 'intel' ? 'active' : ''} onClick={() => setActiveTab('intel')}>Intel Library</button>
-                <button className={activeTab === 'compliance' ? 'active' : ''} onClick={() => setActiveTab('compliance')}>Compliance</button>
-                <button className={activeTab === 'system' ? 'active' : ''} onClick={() => setActiveTab('system')}>System</button>
+                {['leads', 'analytics', 'intel', 'compliance', 'system'].map(tab => (
+                    <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
+                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </button>
+                ))}
             </div>
             <button className="btn-logout" onClick={() => supabase.auth.signOut()}>Logout</button>
         </div>
@@ -188,14 +168,17 @@ function App() {
               {leads.map((lead, i) => (
                 <div key={i} className={`card ${lead.priority === 'High Priority' ? 'priority' : ''} ${lead.status === 'Settled' ? 'settled' : ''}`}>
                   <div className="card-header">
-                    <h3>{lead.user}</h3>
+                    <h3>{lead.user || lead.username}</h3>
                     <span className="value-tag">${parseFloat(lead.estimated_value || 0).toLocaleString()}</span>
                   </div>
                   <p className="pain-point">{lead.pain_point}</p>
-                  <button className="btn-view" onClick={() => {
-                    setEditingLead(lead);
-                    setEditedText(lead.edited_appeal || lead.drafted_appeal);
-                  }}>Review Clinical Package</button>
+                  <div className="card-footer">
+                    <span className="badge info">{lead.status}</span>
+                    <button className="btn-view" onClick={() => {
+                        setEditingLead(lead);
+                        setEditedText(lead.edited_appeal || lead.drafted_appeal || '');
+                    }}>Review Case</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -206,34 +189,72 @@ function App() {
           <section className="analytics-section">
             <div className="analytics-layout">
                 <div className="main-analytics">
-                    <h2>Network Victory Heatmap</h2>
-                    <p className="form-note">Real-time approval trends across 45+ hospitals. Target <b>High Vulnerability</b> payers first.</p>
-                    <div className="performance-grid" style={{marginTop: '1.5rem'}}>
+                    <h2>Global Victory Heatmap</h2>
+                    <div className="performance-grid">
                         {heatmap.map((h, i) => (
                             <div key={i} className={`perf-card ${h.vulnerability === 'HIGH' ? 'success-border' : ''}`}>
-                                <div className="perf-top">
-                                    <strong>{h.payer}</strong>
-                                    <span className={`badge ${h.vulnerability === 'HIGH' ? 'success' : 'info'}`}>{h.vulnerability}</span>
-                                </div>
-                                <div className="val" style={{color: h.vulnerability === 'HIGH' ? '#38a169' : '#2d3748'}}>{h.win_rate}% Win</div>
+                                <strong>{h.payer}</strong>
+                                <div className="val">{h.win_rate}% Win</div>
                                 <p className="form-note">{h.procedure}</p>
                             </div>
                         ))}
                     </div>
-
-                    <h2 style={{marginTop: '3rem'}}>Systemic Pattern Detection</h2>
-            <div className="trends-grid">
-              {analytics.trends.map((t, i) => (
-                <div key={i} className="trend-card">
-                  <h4>{t.procedure}</h4>
-                  <p>{t.payer} denied this {t.count}x.</p>
-                  <strong>Stake: ${t.value.toLocaleString()}</strong>
                 </div>
-              ))}
+                <div className="side-analytics">
+                    <h2>Systemic Patterns</h2>
+                    {analytics.trends.map((t, i) => (
+                        <div key={i} className="rc-card">
+                            <strong>{t.procedure}</strong>
+                            <p>{t.payer}: {t.count} denials</p>
+                        </div>
+                    ))}
+                </div>
             </div>
                 </div>
             </div>
           </section>
+        )}
+
+        {activeTab === 'intel' && (
+            <section className="intel-section">
+                <h2>EviDex Clinical Library</h2>
+                <div className="grid">
+                    {intelLibrary.map((item, i) => (
+                        <div key={i} className="card">
+                            <h3>{item.title}</h3>
+                            <p>{item.summary}</p>
+                            <a href={item.url} target="_blank" className="status-link">Source Citation</a>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
+        {activeTab === 'compliance' && (
+            <section className="compliance-section">
+                <h2>Regulatory Audit Log</h2>
+                <div className="rc-card" style={{background: '#1a202c', color: '#cbd5e0', padding: '1rem'}}>
+                    {complianceLog.map((log, i) => (
+                        <div key={i} style={{marginBottom: '0.5rem', borderBottom: '1px solid #2d3748', paddingBottom: '0.5rem'}}>
+                            <span style={{color: '#4fd1c5'}}>[{new Date(log.created_at).toLocaleTimeString()}]</span> {log.action || log.event_name}
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
+        {activeTab === 'system' && (
+            <section className="system-section">
+                <h2>System Connectivity</h2>
+                <div className="grid">
+                    {Object.entries(health.checks).map(([key, val]) => (
+                        <div key={key} className="stat">
+                            <span className="label">{key.replace('_', ' ')}</span>
+                            <span className={`value ${val === 'Connected' || val === 'Live' ? 'success' : 'info'}`}>{val}</span>
+                        </div>
+                    ))}
+                </div>
+            </section>
         )}
       </main>
 
@@ -241,13 +262,13 @@ function App() {
         <section className="appeal-preview">
           <div className="modal-content">
             <div className="modal-header">
-                <h2>Clinical Review: {editingLead.user}</h2>
-                <button className="btn-escalate" onClick={() => runNegotiationSim(editingLead)}>Strategic Simulation</button>
+                <h2>Case Review: {editingLead.username}</h2>
+                <button className="btn-escalate" onClick={() => runNegotiationSim(editingLead)}>Negotiation Sim</button>
             </div>
-            <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={20} />
+            <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={15} />
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setEditingLead(null)}>Cancel</button>
-              <button className="btn-secondary" onClick={() => launchDiscovery(editingLead.id)}>Litigation Discovery</button>
+              <button className="btn-secondary" onClick={() => setEditingLead(null)}>Close</button>
+              <button className="btn-secondary" onClick={() => launchDiscovery(editingLead.id)}>Discovery Demand</button>
               <button className="btn-primary" onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
             </div>
           </div>
@@ -259,15 +280,15 @@ function App() {
           <div className="modal-content" style={{ borderTop: '8px solid #805ad5' }}>
             <h2>Strategic Masterstroke</h2>
             <div className="rc-card" style={{ background: '#faf5ff', border: '1px solid #d6bcfa' }}>
-                <p><strong>Winning Move:</strong> {negotiation.masterstroke.winning_citation}</p>
+                <p><strong>Citation:</strong> {negotiation.masterstroke.winning_citation}</p>
                 <p>{negotiation.masterstroke.rationale}</p>
             </div>
             <div className="modal-actions">
               <button className="btn-primary" style={{ background: '#805ad5' }} onClick={() => {
                   setEditedText(`${negotiation.masterstroke.winning_citation}\n\n${editedText}`);
                   setNegotiation(null);
-              }}>Apply to Appeal</button>
-              <button className="btn-secondary" onClick={() => setNegotiation(null)}>Close</button>
+              }}>Apply Citation</button>
+              <button className="btn-secondary" onClick={() => setNegotiation(null)}>Dismiss</button>
             </div>
           </div>
         </section>
@@ -276,11 +297,9 @@ function App() {
       {discoveryView && (
         <section className="appeal-preview">
           <div className="modal-content">
-            <h2>Litigation Discovery Demand</h2>
+            <h2>Discovery Demand</h2>
             <pre className="appeal-editor" style={{ background: '#1a202c', color: '#cbd5e0' }}>{discoveryView}</pre>
-            <div className="modal-actions">
-              <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close & Log</button>
-            </div>
+            <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close</button>
           </div>
         </section>
       )}

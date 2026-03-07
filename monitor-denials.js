@@ -35,7 +35,7 @@ async function monitor() {
                     leadId: lead.id,
                     patient: lead.username,
                     amount: lead.estimated_value,
-                    message: `HIGH-VALUE P2P OPPORTUNITY: $${parseFloat(lead.estimated_value).toLocaleString()} claim for ${lead.username} is eligible for Peer-to-Peer. Pre-briefing generated.`
+                    message: `HIGH-VALUE P2P OPPORTUNITY: $${parseFloat(lead.estimated_value).toLocaleString()} claim for ${lead.username} is eligible for Peer-to-Peer.`
                 });
             }
 
@@ -47,27 +47,30 @@ async function monitor() {
             // 3. AGENTIC HEALING & VISION TRIGGERS
             if (lead.status === 'Healing Required') notifications.push({ type: 'AGENTIC_HEAL', leadId: lead.id, payer: lead.insurance_type });
             if (lead.status === 'OCR Required') notifications.push({ type: 'VISION_OCR', leadId: lead.id });
+            if (lead.status === 'Refinement Required') notifications.push({ type: 'RECURSIVE_RESEARCH', leadId: lead.id });
             if (lead.status === 'New' && (!lead.defense_audit || lead.defense_audit.score < 70)) {
                 notifications.push({ type: 'SELF_REFINE', leadId: lead.id });
             }
+        });
 
-            // 4. LITIGATION DISCOVERY DEADLINE (72h Window)
-            if (lead.status === 'Discovery Phase' && lead.submission_log?.includes('Demand Drafted')) {
-                const draftDateMatch = lead.submission_log.match(/Drafted on (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z)/);
-                if (draftDateMatch) {
-                    const draftDate = new Date(draftDateMatch[1]);
-                    const now = new Date();
-                    const diffHours = (now - draftDate) / (1000 * 60 * 60);
+        // 4. OMNIBUS PATTERN DETECTION ($100k+ Cluster)
+        const payerGroups = leads.reduce((acc, lead) => {
+            const key = `${lead.insurance_type}:${lead.title}`;
+            if (!acc[key]) acc[key] = { payer: lead.insurance_type, procedure: lead.title, total: 0, ids: [] };
+            acc[key].total += parseFloat(lead.estimated_value || 0);
+            acc[key].ids.push(lead.id);
+            return acc;
+        }, {});
 
-                    if (diffHours >= 72) {
-                        notifications.push({
-                            type: 'DISCOVERY_VIOLATION',
-                            leadId: lead.id,
-                            payer: lead.insurance_type,
-                            message: `DISCOVERY STONWALL DETECTED: ${lead.insurance_type} has failed to produce algorithmic data for ${lead.username} within 72h.`
-                        });
-                    }
-                }
+        Object.values(payerGroups).forEach(group => {
+            if (group.total >= 100000) {
+                notifications.push({
+                    type: 'OMNIBUS_AUTO_TRANSMIT',
+                    payer: group.payer,
+                    procedure: group.procedure,
+                    totalValue: group.total,
+                    message: `SYSTEMIC ESCALATION: $${group.total.toLocaleString()} denial pattern detected for ${group.procedure} at ${group.payer}. Omnibus Demand generated.`
+                });
             }
         });
 
