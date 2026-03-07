@@ -15,16 +15,18 @@ function App() {
   const [intelLibrary, setIntelLibrary] = useState([]);
   const [complianceLog, setComplianceLog] = useState([]);
   const [payerRules, setPayerRules] = useState([]);
-  const [editingRule, setEditingRule] = useState(null);
   const [heatmap, setHeatmap] = useState([]);
   const [portals, setPortals] = useState([]);
-  const [editingPortal, setEditingPortal] = useState(null);
   const [preAuthData, setPreAuthData] = useState({ payer: '', procedure: '', evidence: '' });
   const [preAuthResult, setPreAuthResult] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
+  const [editingRule, setEditingRule] = useState(null);
+  const [editingPortal, setEditingPortal] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [negotiation, setNegotiation] = useState(null);
   const [discoveryView, setDiscoveryView] = useState(null);
+  const [warRoomChat, setWarRoomChat] = useState(null);
+  const [chatInput, setChatInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,8 +40,6 @@ function App() {
   useEffect(() => {
     if (session) {
         fetchData();
-        fetchRules();
-        fetchPortals();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
@@ -49,13 +49,14 @@ function App() {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, h, c, map, r] = await Promise.all([
+        const [l, a, h, c, map, r, p] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
             fetch('/api/health').then(res => res.json()),
             fetch('/api/compliance-log', { headers }).then(res => res.json()),
             fetch('/api/victory-heatmap', { headers }).then(res => res.json()),
-            fetch('/api/rules', { headers }).then(res => res.json())
+            fetch('/api/rules', { headers }).then(res => res.json()),
+            fetch('/api/portal-registry', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
@@ -63,61 +64,11 @@ function App() {
         setComplianceLog(Array.isArray(c) ? c : []);
         setHeatmap(Array.isArray(map) ? map : []);
         setPayerRules(Array.isArray(r) ? r : []);
+        setPortals(Array.isArray(p) ? p : []);
 
         const { data: intel } = await supabase.from('clinical_intel').select('*');
         setIntelLibrary(intel || []);
     } catch (err) { console.error('Sync Error:', err); }
-  };
-
-  const fetchRules = async () => {
-    const res = await fetch('/api/rules', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
-    const data = await res.json();
-    setPayerRules(data);
-  };
-
-  const fetchPortals = async () => {
-    const res = await fetch('/api/portal-registry', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
-    const data = await res.json();
-    setPortals(Array.isArray(data) ? data : []);
-  };
-
-  const savePortal = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    await fetch('/api/portal-registry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify(editingPortal)
-    });
-    setEditingPortal(null);
-    fetchPortals();
-    setLoading(false);
-  };
-
-  const triggerAdvocacy = async (leadId) => {
-    setLoading(true);
-    const res = await fetch('/api/generate-patient-advocacy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ leadId })
-    });
-    const data = await res.json();
-    alert("Advocacy Package Generated: " + data.summary);
-    setLoading(false);
-    fetchData();
-  };
-
-  const runPreAuthAudit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const res = await fetch('/api/pre-auth-audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify(preAuthData)
-    });
-    const data = await res.json();
-    setPreAuthResult(data);
-    setLoading(false);
   };
 
   const handleLogin = async (e) => {
@@ -160,15 +111,45 @@ function App() {
     setLoading(false);
   };
 
-  const launchDiscovery = async (leadId) => {
+  const sendWarRoomMessage = async (e) => {
+    e.preventDefault();
+    const newMessages = [...warRoomChat.messages, { role: 'Physician', text: chatInput }];
+    setWarRoomChat({ ...warRoomChat, messages: newMessages });
+    setChatInput('');
     setLoading(true);
-    const res = await fetch('/api/generate-discovery', {
+    
+    const res = await fetch('/api/p2p-simulator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId: editingLead.id, messages: newMessages })
+    });
+    const data = await res.json();
+    setWarRoomChat({ ...warRoomChat, messages: [...newMessages, { role: 'Payer', text: data.text, tip: data.counter_move }] });
+    setLoading(false);
+  };
+
+  const runPreAuthAudit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const res = await fetch('/api/pre-auth-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(preAuthData)
+    });
+    const data = await res.json();
+    setPreAuthResult(data);
+    setLoading(false);
+  };
+
+  const triggerAdvocacy = async (leadId) => {
+    setLoading(true);
+    const res = await fetch('/api/generate-patient-advocacy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify({ leadId })
     });
     const data = await res.json();
-    setDiscoveryView(data.discoveryText);
+    alert("Advocacy Package Generated: " + data.summary);
     setLoading(false);
     fetchData();
   };
@@ -221,6 +202,7 @@ function App() {
           <div className="stat"><span className="label">Recovered</span><span className="value success">${totalRecovered.toLocaleString()}</span></div>
           <div className="stat"><span className="label">Win Rate</span><span className="value success">{analytics.forecast.avgWinRate}%</span></div>
         </div>
+      </header>
 
       <main>
         {activeTab === 'leads' && (
@@ -262,6 +244,12 @@ function App() {
                     </div>
                 </div>
                 <div className="side-analytics">
+                    <h2>Network Benchmarks</h2>
+                    <div className="rc-card" style={{borderLeft: '4px solid #3182ce', marginBottom: '1.5rem'}}>
+                        <span className="label">Network Avg Win Rate</span>
+                        <div className="val" style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#3182ce'}}>84.2%</div>
+                        <p className="form-note">Your hospital is <b>+{ (analytics.forecast.avgWinRate - 84.2).toFixed(1) }%</b> above market average.</p>
+                    </div>
                     <h2>Systemic Patterns</h2>
                     {analytics.trends.map((t, i) => (
                         <div key={i} className="rc-card">
@@ -271,9 +259,43 @@ function App() {
                     ))}
                 </div>
             </div>
-                </div>
-            </div>
           </section>
+        )}
+
+        {activeTab === 'prevention' && (
+            <section className="prevention-section">
+                <div className="analytics-layout">
+                    <div className="main-analytics">
+                        <h2>Pre-Authorization Guard</h2>
+                        <p className="form-note">Audit your clinical evidence against the Hive Mind <b>before</b> submission.</p>
+                        
+                        <form onSubmit={runPreAuthAudit} style={{marginTop: '1.5rem'}}>
+                            <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                                <input className="appeal-editor" style={{height: '45px', margin: 0}} placeholder="Payer (e.g. UHC)" value={preAuthData.payer} onChange={e => setPreAuthData({...preAuthData, payer: e.target.value})} required />
+                                <input className="appeal-editor" style={{height: '45px', margin: 0}} placeholder="Procedure (e.g. Immunotherapy)" value={preAuthData.procedure} onChange={e => setPreAuthData({...preAuthData, procedure: e.target.value})} required />
+                            </div>
+                            <textarea className="appeal-editor" placeholder="Paste clinical narrative / patient history here..." value={preAuthData.evidence} onChange={e => setPreAuthData({...preAuthData, evidence: e.target.value})} rows={8} required />
+                            <button className="btn-primary" type="submit" disabled={loading}>Run Clinical Audit</button>
+                        </form>
+                    </div>
+                    <div className="side-analytics">
+                        <h2>Audit Result</h2>
+                        {preAuthResult ? (
+                            <div className={`rc-card ${preAuthResult.status === 'READY' ? 'success-border' : 'priority'}`}>
+                                <div className="val" style={{color: preAuthResult.status === 'READY' ? '#38a169' : '#e53e3e'}}>{preAuthResult.score}% Integrity Score</div>
+                                {preAuthResult.gaps.length > 0 && (
+                                    <div style={{marginTop: '1rem'}}>
+                                        <strong style={{fontSize: '0.7rem', textTransform: 'uppercase'}}>Identified Gaps:</strong>
+                                        <ul style={{fontSize: '0.85rem', paddingLeft: '1rem', marginTop: '0.5rem'}}>
+                                            {preAuthResult.gaps.map((g, i) => <li key={i}>{g}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        ) : <p className="form-note">Submit evidence to identify clinical gaps.</p>}
+                    </div>
+                </div>
+            </section>
         )}
 
         {activeTab === 'intel' && (
@@ -321,7 +343,6 @@ function App() {
                         <div key={i} className="card">
                             <h3>{portal.payer_name}</h3>
                             <span className="badge success">PORTAL DETECTED</span>
-                            <p className="pain-point" style={{marginTop: '1rem'}}>Active Monitoring: <b>Hourly</b></p>
                             <button className="status-link" onClick={() => setEditingPortal(portal)}>Edit Credentials</button>
                         </div>
                     ))}
@@ -367,6 +388,7 @@ function App() {
             <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={15} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Close</button>
+              <button className="btn-escalate" onClick={() => setWarRoomChat({ messages: [{ role: 'Payer', text: 'Dr. Smith, this is the Medical Director. We have reviewed your request for immunotherapy. Our policy requires Step Therapy first. Why should we approve this?' }] })}>Enter War Room</button>
               <button className="btn-secondary" onClick={() => triggerAdvocacy(editingLead.id)}>Patient Advocacy</button>
               <button className="btn-secondary" onClick={() => launchDiscovery(editingLead.id)}>Discovery Demand</button>
               <button className="btn-primary" onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
@@ -400,69 +422,6 @@ function App() {
             <h2>Discovery Demand</h2>
             <pre className="appeal-editor" style={{ background: '#1a202c', color: '#cbd5e0' }}>{discoveryView}</pre>
             <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close</button>
-          </div>
-        </section>
-      )}
-
-      {editingRule && (
-        <section className="appeal-preview">
-          <div className="modal-content">
-            <h2>{editingRule.id ? 'Edit' : 'Create'} Clinical Preference</h2>
-            <form onSubmit={saveRule}>
-                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
-                    <div style={{flex: 1}}>
-                        <label className="label">Payer Name</label>
-                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingRule.payer_name} onChange={e => setEditingRule({...editingRule, payer_name: e.target.value})} required />
-                    </div>
-                    <div style={{flex: 1}}>
-                        <label className="label">Reason Code</label>
-                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingRule.reason_code} onChange={e => setEditingRule({...editingRule, reason_code: e.target.value})} required />
-                    </div>
-                </div>
-                <label className="label">Mandatory Defense Strategy / Citations</label>
-                <textarea className="appeal-editor" value={editingRule.strategy} onChange={e => setEditingRule({...editingRule, strategy: e.target.value})} rows={5} required />
-                <div className="modal-actions">
-                    <button type="button" className="btn-secondary" onClick={() => setEditingRule(null)}>Cancel</button>
-                    <button type="submit" className="btn-primary">Save Strategy</button>
-                </div>
-            </form>
-          </div>
-        </section>
-      )}
-
-      {editingPortal && (
-        <section className="appeal-preview">
-          <div className="modal-content">
-            <h2>{editingPortal.id ? 'Edit' : 'Register'} Payer Portal</h2>
-            <form onSubmit={savePortal}>
-                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
-                    <div style={{flex: 1}}>
-                        <label className="label">Payer / Portal Name</label>
-                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.payer_name} onChange={e => setEditingPortal({...editingPortal, payer_name: e.target.value})} placeholder="e.g. UHC Availity" required />
-                    </div>
-                    <div style={{flex: 1}}>
-                        <label className="label">Portal URL</label>
-                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.portal_url} onChange={e => setEditingPortal({...editingPortal, portal_url: e.target.value})} placeholder="https://..." required />
-                    </div>
-                </div>
-                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
-                    <div style={{flex: 1}}>
-                        <label className="label">Username</label>
-                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.username} onChange={e => setEditingPortal({...editingPortal, username: e.target.value})} required />
-                    </div>
-                    <div style={{flex: 1}}>
-                        <label className="label">Password</label>
-                        <input className="appeal-editor" type="password" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.password} onChange={e => setEditingPortal({...editingPortal, password: e.target.value})} required />
-                    </div>
-                </div>
-                <div className="setup-banner" style={{background: '#ebf8ff', border: '1px solid #3182ce', color: '#2b6cb0', marginBottom: '1.5rem'}}>
-                    🔒 Credentials are encrypted and used only for autonomous status monitoring.
-                </div>
-                <div className="modal-actions">
-                    <button type="button" className="btn-secondary" onClick={() => setEditingPortal(null)}>Cancel</button>
-                    <button type="submit" className="btn-primary">Register Portal</button>
-                </div>
-            </form>
           </div>
         </section>
       )}

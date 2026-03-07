@@ -1,34 +1,44 @@
+const supabase = require('./services/supabaseClient');
 const { verifyUser } = require('./services/auth');
 
 /**
  * P2P War Room Simulator v1.0
- * Allows physicians to practice clinical negotiations with a Hostile AI Payer.
+ * Simulates a hostile payer medical director for clinical combat training.
  */
 
 export default async function handler(req, res) {
     const user = await verifyUser(req, res);
     if (!user) return;
 
-    const { leadId, physicianArgument, payerName } = req.body;
+    const { leadId, messages } = req.body;
 
     try {
-        console.log(`[War Room] Simulating P2P pushback for ${payerName}...`);
+        const { data: lead } = await supabase
+            .from('healthcare_denial_leads')
+            .select('*')
+            .eq('id', leadId)
+            .single();
 
-        // In production, this spawns a session_spawn with a "Denial specialist" persona
-        // We simulate a sophisticated clinical pushback based on Payer Fingerprints.
+        console.log(`[War Room] Simulating ${lead.insurance_type} for Lead ${leadId}...`);
+
+        // In production, this uses an LLM with the Payer's Behavioral Fingerprint.
+        // We simulate a common "Trap" question for oncology staging.
+        const lastMessage = messages[messages.length - 1].text.toLowerCase();
         
-        let pushback = "";
-        if (payerName.toLowerCase().includes('united')) {
-            pushback = "We acknowledge the Stage IV diagnosis, but our internal Commercial-001 policy requires a 30-day trial of Tier 1 therapy first. Why is this patient being fast-tracked?";
-        } else if (payerName.toLowerCase().includes('cigna')) {
-            pushback = "The provided PubMed citation is from 2021. We require data from the last 12 months for this specific biologic. Do you have more recent efficacy data?";
-        } else {
-            pushback = "We've reviewed the EHR data you submitted. While the labs show elevation, they don't meet our 'Acute' threshold for this procedure. Can you justify the urgency?";
+        let response = "I hear you, doctor. But our policy is clear: we require 30 days of Step Therapy before we can approve this biologic. Why wasn't Drug X attempted first?";
+
+        if (lastMessage.includes('stage iv') || lastMessage.includes('soc')) {
+            response = "While JAMA might suggest that for Stage IV, our internal adjudication algorithm classifies this as 'Experimental' for this specific diagnosis code. Do you have peer-reviewed data that explicitly overrides NCD 210.3?";
         }
 
-        return res.status(200).json({ 
-            payerResponse: pushback,
-            strategyHint: "HINT: Cite CMS-0057-F Section 422.568 regarding the mandate to account for patient-specific contraindications to Tier 1 therapy."
+        if (lastMessage.includes('210.3') || lastMessage.includes('cms-0057-f')) {
+            response = "Wait... you're citing 0057-F? (Internal Payer Note: Physician is informed on Interoperability Rule). Okay, if you can confirm the medication failure dates for Drug X, we might have a path to reversal.";
+        }
+
+        return res.status(200).json({
+            role: 'Hostile Reviewer',
+            text: response,
+            counter_move: "Cite the CMS-0057-F 'Granular Justification' requirement now to force a reversal."
         });
 
     } catch (error) {
