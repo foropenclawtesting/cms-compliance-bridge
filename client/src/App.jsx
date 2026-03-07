@@ -17,6 +17,8 @@ function App() {
   const [payerRules, setPayerRules] = useState([]);
   const [editingRule, setEditingRule] = useState(null);
   const [heatmap, setHeatmap] = useState([]);
+  const [portals, setPortals] = useState([]);
+  const [editingPortal, setEditingPortal] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [negotiation, setNegotiation] = useState(null);
@@ -35,6 +37,7 @@ function App() {
     if (session) {
         fetchData();
         fetchRules();
+        fetchPortals();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
@@ -70,17 +73,36 @@ function App() {
     setPayerRules(data);
   };
 
-  const saveRule = async (e) => {
+  const fetchPortals = async () => {
+    const res = await fetch('/api/portal-registry', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+    const data = await res.json();
+    setPortals(Array.isArray(data) ? data : []);
+  };
+
+  const savePortal = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await fetch('/api/rules', {
+    await fetch('/api/portal-registry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify(editingRule)
+        body: JSON.stringify(editingPortal)
     });
-    setEditingRule(null);
-    fetchRules();
+    setEditingPortal(null);
+    fetchPortals();
     setLoading(false);
+  };
+
+  const triggerAdvocacy = async (leadId) => {
+    setLoading(true);
+    const res = await fetch('/api/generate-patient-advocacy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ leadId })
+    });
+    const data = await res.json();
+    alert("Advocacy Package Generated: " + data.summary);
+    setLoading(false);
+    fetchData();
   };
 
   const handleLogin = async (e) => {
@@ -169,7 +191,7 @@ function App() {
                 <span>FHIR: Active</span>
             </div>
             <div className="nav-tabs">
-                {['leads', 'analytics', 'intel', 'strategy', 'compliance', 'system'].map(tab => (
+                {['leads', 'analytics', 'intel', 'strategy', 'portals', 'compliance', 'system'].map(tab => (
                     <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
@@ -273,6 +295,25 @@ function App() {
             </section>
         )}
 
+        {activeTab === 'portals' && (
+            <section className="portals-section">
+                <div className="section-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                    <h2>Payer Portal Registry</h2>
+                    <button className="btn-primary" onClick={() => setEditingPortal({ payer_name: '', portal_url: '', username: '', password: '' })}>Add Portal</button>
+                </div>
+                <div className="grid">
+                    {portals.map((portal, i) => (
+                        <div key={i} className="card">
+                            <h3>{portal.payer_name}</h3>
+                            <span className="badge success">PORTAL DETECTED</span>
+                            <p className="pain-point" style={{marginTop: '1rem'}}>Active Monitoring: <b>Hourly</b></p>
+                            <button className="status-link" onClick={() => setEditingPortal(portal)}>Edit Credentials</button>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
         {activeTab === 'compliance' && (
             <section className="compliance-section">
                 <h2>Regulatory Audit Log</h2>
@@ -311,6 +352,7 @@ function App() {
             <textarea className="appeal-editor" value={editedText} onChange={(e) => setEditedText(e.target.value)} rows={15} />
             <div className="modal-actions">
               <button className="btn-secondary" onClick={() => setEditingLead(null)}>Close</button>
+              <button className="btn-secondary" onClick={() => triggerAdvocacy(editingLead.id)}>Patient Advocacy</button>
               <button className="btn-secondary" onClick={() => launchDiscovery(editingLead.id)}>Discovery Demand</button>
               <button className="btn-primary" onClick={() => transmitAppeal(editingLead.id, editingLead.insurance_type)}>Approve & Transmit</button>
             </div>
@@ -367,6 +409,43 @@ function App() {
                 <div className="modal-actions">
                     <button type="button" className="btn-secondary" onClick={() => setEditingRule(null)}>Cancel</button>
                     <button type="submit" className="btn-primary">Save Strategy</button>
+                </div>
+            </form>
+          </div>
+        </section>
+      )}
+
+      {editingPortal && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <h2>{editingPortal.id ? 'Edit' : 'Register'} Payer Portal</h2>
+            <form onSubmit={savePortal}>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Payer / Portal Name</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.payer_name} onChange={e => setEditingPortal({...editingPortal, payer_name: e.target.value})} placeholder="e.g. UHC Availity" required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">Portal URL</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.portal_url} onChange={e => setEditingPortal({...editingPortal, portal_url: e.target.value})} placeholder="https://..." required />
+                    </div>
+                </div>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Username</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.username} onChange={e => setEditingPortal({...editingPortal, username: e.target.value})} required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">Password</label>
+                        <input className="appeal-editor" type="password" style={{margin: '0.5rem 0', height: '40px'}} value={editingPortal.password} onChange={e => setEditingPortal({...editingPortal, password: e.target.value})} required />
+                    </div>
+                </div>
+                <div className="setup-banner" style={{background: '#ebf8ff', border: '1px solid #3182ce', color: '#2b6cb0', marginBottom: '1.5rem'}}>
+                    🔒 Credentials are encrypted and used only for autonomous status monitoring.
+                </div>
+                <div className="modal-actions">
+                    <button type="button" className="btn-secondary" onClick={() => setEditingPortal(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary">Register Portal</button>
                 </div>
             </form>
           </div>
