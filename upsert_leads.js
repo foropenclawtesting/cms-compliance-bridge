@@ -2,7 +2,8 @@ const supabase = require('./api/services/supabaseClient.js');
 
 const leads = [
   {
-    external_id: "1rgswmv",
+    url: "https://www.reddit.com/r/HealthInsurance/comments/1rgswmv/colorado_newborn_mandate_confusion/",
+    username: "Scrubbed_User_1",
     title: "Colorado Newborn Mandate Confusion",
     estimated_value: 13000,
     insurance_type: "Anthem BCBS",
@@ -11,7 +12,8 @@ const leads = [
     clinical_synthesis: "This appeal contests the denial of coverage for newborn services based on 'Birthday Rule' secondary payer logic. Pursuant to Colorado Revised Statute § 10-16-104, all health benefit plans must provide coverage for newborn children from the moment of birth, extending for 31 days..."
   },
   {
-    external_id: "1rl4owz",
+    url: "https://www.reddit.com/r/HealthInsurance/comments/1rl4owz/do_i_file_another_appeal/",
+    username: "Scrubbed_User_2",
     title: "Experimental Test Appeal",
     estimated_value: 2500,
     insurance_type: "Unknown",
@@ -20,7 +22,8 @@ const leads = [
     clinical_synthesis: "The denial of [Test Name] as 'experimental or investigational' is inconsistent with both clinical evidence and the payer’s own prior adjudications. We note that a larger, concurrent claim for the exact same diagnostic profile was previously overturned and paid by the plan..."
   },
   {
-    external_id: "1rmjmzo",
+    url: "https://www.reddit.com/r/HealthInsurance/comments/1rmjmzo/aetna_spinal_fusion_denial/",
+    username: "Scrubbed_User_3",
     title: "Aetna Spinal Fusion Denial",
     estimated_value: 75000,
     insurance_type: "Aetna",
@@ -32,15 +35,15 @@ const leads = [
 
 async function upsertLeads() {
     for (const lead of leads) {
-        console.log(`Upserting lead: ${lead.external_id}`);
+        console.log(`Upserting lead: ${lead.url}`);
         const { data, error } = await supabase
             .from('healthcare_denial_leads')
-            .upsert(lead, { onConflict: 'url' }); // Note: I should use a unique field like 'url' or 'id' if 'external_id' isn't in schema
+            .upsert(lead, { onConflict: 'url' });
         
         if (error) {
-            console.error(`Error upserting ${lead.external_id}:`, error.message);
+            console.error(`Error upserting ${lead.url}:`, error.message);
         } else {
-            console.log(`Successfully upserted ${lead.external_id}`);
+            console.log(`Successfully upserted ${lead.url}`);
         }
     }
 }

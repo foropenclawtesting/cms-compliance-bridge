@@ -19,6 +19,8 @@ function App() {
   const [heatmap, setHeatmap] = useState([]);
   const [portals, setPortals] = useState([]);
   const [editingPortal, setEditingPortal] = useState(null);
+  const [preAuthData, setPreAuthData] = useState({ payer: '', procedure: '', evidence: '' });
+  const [preAuthResult, setPreAuthResult] = useState(null);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
   const [negotiation, setNegotiation] = useState(null);
@@ -103,6 +105,19 @@ function App() {
     alert("Advocacy Package Generated: " + data.summary);
     setLoading(false);
     fetchData();
+  };
+
+  const runPreAuthAudit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    const res = await fetch('/api/pre-auth-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(preAuthData)
+    });
+    const data = await res.json();
+    setPreAuthResult(data);
+    setLoading(false);
   };
 
   const handleLogin = async (e) => {
@@ -191,7 +206,7 @@ function App() {
                 <span>FHIR: Active</span>
             </div>
             <div className="nav-tabs">
-                {['leads', 'analytics', 'intel', 'strategy', 'portals', 'compliance', 'system'].map(tab => (
+                {['leads', 'analytics', 'prevention', 'intel', 'strategy', 'portals', 'compliance', 'system'].map(tab => (
                     <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>

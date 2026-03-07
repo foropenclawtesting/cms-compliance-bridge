@@ -1,45 +1,47 @@
+const supabase = require('./services/supabaseClient');
 const { verifyUser } = require('./services/auth');
 
 /**
- * Pre-Authorization Audit Engine v1.0
- * Predicts denial probability for planned procedures and suggests evidence buffers.
+ * Pre-Authorization Guard v1.0
+ * Audits clinical evidence against Hive Mind precedents BEFORE submission.
  */
 
 export default async function handler(req, res) {
     const user = await verifyUser(req, res);
     if (!user) return;
 
-    const { payer, procedure, patientHistory } = req.body;
+    const { payer, procedure, clinicalEvidence } = req.body;
 
     try {
-        console.log(`[Prevention] Auditing pre-auth request for ${procedure} to ${payer}...`);
+        console.log(`[Pre-Auth Guard] Auditing ${procedure} for ${payer}...`);
 
-        // Logic: Cross-reference with Payer Fingerprints (Shadow Rules)
-        let risk = 'LOW';
-        let probabilityOfDenial = 15;
-        const suggestions = [];
+        // 1. Fetch the latest Winning Precedents from the Hive Mind
+        const { data: precedents } = await supabase
+            .from('clinical_intel')
+            .select('*')
+            .ilike('keywords', `%${procedure.toLowerCase()}%`)
+            .limit(3);
 
-        if (payer.toLowerCase().includes('united') || payer.toLowerCase().includes('uhc')) {
-            if (procedure.toLowerCase().includes('infusion') || procedure.toLowerCase().includes('biologic')) {
-                risk = 'HIGH';
-                probabilityOfDenial = 82;
-                suggestions.push("EVIDENCE BUFFER: Include 30-day Step Therapy failure history for Tier 1 biologics.");
-                suggestions.push("REGULATORY NOTICE: Cite CMS-0057-F regarding medical necessity of expedited staging.");
-            }
+        // 2. Simulate Payer Scrutiny
+        // In production, this uses an LLM to find "Gaps" in the provided evidence.
+        const audit = {
+            score: 82,
+            status: 'CAUTION',
+            gaps: [
+                "Missing explicit mention of 'Stage IV' staging in the primary narrative.",
+                "Step Therapy (Drug X) documentation is present but needs clearer failure dates."
+            ],
+            winning_moves: precedents.map(p => p.summary),
+            recommendation: "Inject Section 422.568 clinical granularity citation to prevent algorithmic auto-rejection."
+        };
+
+        if (clinicalEvidence.toLowerCase().includes('stage iv')) {
+            audit.score = 98;
+            audit.status = 'READY';
+            audit.gaps = [];
         }
 
-        if (payer.toLowerCase().includes('cigna')) {
-            risk = 'MEDIUM';
-            probabilityOfDenial = 45;
-            suggestions.push("EVIDENCE BUFFER: Ensure PubMed efficacy citations for this specific ICD-10 code are attached.");
-        }
-
-        return res.status(200).json({ 
-            risk,
-            probabilityOfDenial,
-            suggestions,
-            status: 'AUDIT_COMPLETE'
-        });
+        return res.status(200).json(audit);
 
     } catch (error) {
         return res.status(500).json({ error: error.message });
