@@ -14,6 +14,8 @@ function App() {
   const [analytics, setAnalytics] = useState({ payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
   const [intelLibrary, setIntelLibrary] = useState([]);
   const [complianceLog, setComplianceLog] = useState([]);
+  const [payerRules, setPayerRules] = useState([]);
+  const [editingRule, setEditingRule] = useState(null);
   const [heatmap, setHeatmap] = useState([]);
   const [editingLead, setEditingLead] = useState(null);
   const [editedText, setEditedText] = useState('');
@@ -32,6 +34,7 @@ function App() {
   useEffect(() => {
     if (session) {
         fetchData();
+        fetchRules();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
     }
@@ -41,22 +44,43 @@ function App() {
     if (!session) return;
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
     try {
-        const [l, a, h, c, map] = await Promise.all([
+        const [l, a, h, c, map, r] = await Promise.all([
             fetch('/api/leads', { headers }).then(res => res.json()),
             fetch('/api/analytics', { headers }).then(res => res.json()),
             fetch('/api/health').then(res => res.json()),
             fetch('/api/compliance-log', { headers }).then(res => res.json()),
-            fetch('/api/victory-heatmap', { headers }).then(res => res.json())
+            fetch('/api/victory-heatmap', { headers }).then(res => res.json()),
+            fetch('/api/rules', { headers }).then(res => res.json())
         ]);
         setLeads(Array.isArray(l) ? l : []);
         setAnalytics(a || { payers: [], trends: [], rootCauses: [], forecast: { weightedForecast: 0, avgWinRate: 0, totalPendingValue: 0 } });
         setHealth(h);
         setComplianceLog(Array.isArray(c) ? c : []);
         setHeatmap(Array.isArray(map) ? map : []);
+        setPayerRules(Array.isArray(r) ? r : []);
 
         const { data: intel } = await supabase.from('clinical_intel').select('*');
         setIntelLibrary(intel || []);
     } catch (err) { console.error('Sync Error:', err); }
+  };
+
+  const fetchRules = async () => {
+    const res = await fetch('/api/rules', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+    const data = await res.json();
+    setPayerRules(data);
+  };
+
+  const saveRule = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await fetch('/api/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(editingRule)
+    });
+    setEditingRule(null);
+    fetchRules();
+    setLoading(false);
   };
 
   const handleLogin = async (e) => {
@@ -145,7 +169,7 @@ function App() {
                 <span>FHIR: Active</span>
             </div>
             <div className="nav-tabs">
-                {['leads', 'analytics', 'intel', 'compliance', 'system'].map(tab => (
+                {['leads', 'analytics', 'intel', 'strategy', 'compliance', 'system'].map(tab => (
                     <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>
                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
                     </button>
@@ -230,6 +254,25 @@ function App() {
             </section>
         )}
 
+        {activeTab === 'strategy' && (
+            <section className="strategy-section">
+                <div className="section-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem'}}>
+                    <h2>Payer Clinical Strategy</h2>
+                    <button className="btn-primary" onClick={() => setEditingRule({ payer_name: '', reason_code: 'All', strategy: '' })}>Add Rule</button>
+                </div>
+                <div className="grid">
+                    {payerRules.map((rule, i) => (
+                        <div key={i} className="card">
+                            <h3>{rule.payer_name}</h3>
+                            <span className="badge info">{rule.reason_code}</span>
+                            <p className="pain-point" style={{marginTop: '1rem'}}>{rule.strategy}</p>
+                            <button className="status-link" onClick={() => setEditingRule(rule)}>Edit Preference</button>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        )}
+
         {activeTab === 'compliance' && (
             <section className="compliance-section">
                 <h2>Regulatory Audit Log</h2>
@@ -300,6 +343,32 @@ function App() {
             <h2>Discovery Demand</h2>
             <pre className="appeal-editor" style={{ background: '#1a202c', color: '#cbd5e0' }}>{discoveryView}</pre>
             <button className="btn-primary" onClick={() => setDiscoveryView(null)}>Close</button>
+          </div>
+        </section>
+      )}
+
+      {editingRule && (
+        <section className="appeal-preview">
+          <div className="modal-content">
+            <h2>{editingRule.id ? 'Edit' : 'Create'} Clinical Preference</h2>
+            <form onSubmit={saveRule}>
+                <div style={{display: 'flex', gap: '1rem', marginBottom: '1rem'}}>
+                    <div style={{flex: 1}}>
+                        <label className="label">Payer Name</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingRule.payer_name} onChange={e => setEditingRule({...editingRule, payer_name: e.target.value})} required />
+                    </div>
+                    <div style={{flex: 1}}>
+                        <label className="label">Reason Code</label>
+                        <input className="appeal-editor" style={{margin: '0.5rem 0', height: '40px'}} value={editingRule.reason_code} onChange={e => setEditingRule({...editingRule, reason_code: e.target.value})} required />
+                    </div>
+                </div>
+                <label className="label">Mandatory Defense Strategy / Citations</label>
+                <textarea className="appeal-editor" value={editingRule.strategy} onChange={e => setEditingRule({...editingRule, strategy: e.target.value})} rows={5} required />
+                <div className="modal-actions">
+                    <button type="button" className="btn-secondary" onClick={() => setEditingRule(null)}>Cancel</button>
+                    <button type="submit" className="btn-primary">Save Strategy</button>
+                </div>
+            </form>
           </div>
         </section>
       )}
